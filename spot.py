@@ -11,7 +11,11 @@ import bosdyn.client
 import bosdyn.client.lease
 import bosdyn.client.util
 from bosdyn import geometry
-from bosdyn.client.robot_command import (RobotCommandClient, blocking_stand, block_until_arm_arrives)
+from bosdyn.client.robot_command import (
+    RobotCommandClient,
+    blocking_stand,
+    block_until_arm_arrives,
+)
 from bosdyn.client import math_helpers
 from bosdyn.client.image import ImageClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
@@ -32,6 +36,7 @@ from bosdyn.client.frame_helpers import (
 )
 
 from bosdyn.api import robot_command_pb2
+from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import synchronized_command_pb2
 import time
@@ -217,6 +222,30 @@ class Spot:
 
             time.sleep(0.25)
 
+    def set_base_velocity(self, x_vel, y_vel, ang_vel, vel_time, params=None):
+        body_tform_goal = math_helpers.SE2Velocity(x=x_vel, y=y_vel, angular=ang_vel)
+        if params is None:
+            params = spot_command_pb2.MobilityParams(
+                obstacle_params=spot_command_pb2.ObstacleParams(
+                    disable_vision_body_obstacle_avoidance=False,
+                    disable_vision_foot_obstacle_avoidance=False,
+                    disable_vision_foot_constraint_avoidance=False,
+                    obstacle_avoidance_padding=0.05,  # in meters
+                )
+            )
+        robot_cmd = RobotCommandBuilder.synchro_velocity_command(
+            v_x=body_tform_goal.linear_velocity_x,
+            v_y=body_tform_goal.linear_velocity_y,
+            v_rot=body_tform_goal.angular_velocity,
+            params=params,
+        )
+        cmd_id = self.command_client.robot_command(
+            robot_cmd, end_time_secs=time.time() + vel_time
+        )
+
+        return cmd_id
+
+
 class SpotLease:
     """
     A class that supports execution with Python's "with" statement for safe return of
@@ -254,7 +283,9 @@ def image_response_to_cv2(image_response):
         dtype = np.uint8
     img = np.fromstring(image_response.shot.image.data, dtype=dtype)
     if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
-        img = img.reshape(image_response.shot.image.rows, image_response.shot.image.cols)
+        img = img.reshape(
+            image_response.shot.image.rows, image_response.shot.image.cols
+        )
     else:
         img = cv2.imdecode(img, -1)
 
