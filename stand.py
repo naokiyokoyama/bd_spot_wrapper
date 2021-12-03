@@ -4,7 +4,6 @@ import time
 def run(spot):
     """Make Spot stand"""
     spot.power_on()
-    spot.loginfo("Commanding robot to stand...")
     spot.blocking_stand()
 
     # Wait 3 seconds to before powering down...

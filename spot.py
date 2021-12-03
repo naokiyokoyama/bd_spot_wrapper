@@ -59,7 +59,7 @@ class Spot:
         self.loginfo("Robot safely powered off.")
 
     def blocking_stand(self, timeout_sec=10):
-        assert self.command_client is not None, "Run self.get_command_client() first!"
+        self.loginfo("Commanding robot to stand (blocking)...")
         blocking_stand(self.command_client, timeout_sec=timeout_sec)
         self.loginfo("Robot standing.")
 
