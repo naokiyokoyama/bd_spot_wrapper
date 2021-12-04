@@ -30,4 +30,5 @@ def main(spot: Spot):
 
 if __name__ == "__main__":
     spot = Spot("ViewCamera")
+    # We don't need a lease because we're passively observing images (no motor ctrl)
     main(spot)
