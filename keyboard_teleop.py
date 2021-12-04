@@ -1,7 +1,8 @@
 from spot import Spot, HAND_RGB_UUID
-from pynput import keyboard
 import numpy as np
 import time
+import curses
+import signal
 
 MOVE_INCREMENT = 0.02
 TILT_INCREMENT = 5.0
@@ -32,8 +33,11 @@ KEY2BASEMOVEMENT = {
     'd': [0.0, -BASE_LIN_VEL, 0.0],  # strafe right
 }
 INSTRUCTIONS = (
-    "Use 'wasdqe' and 'ijkl' keys to control robot. Press 't' to toggle between "
-    "controlling the arm or the base."
+    "Use 'wasdqe' for translating gripper, 'ijkl' for rotating.\n"
+    "Use 'g' to grasp whatever is at the center of the gripper image.\n"
+    "Press 't' to toggle between controlling the arm or the base\n"
+    "('wasdqe' will control base).\n"
+    "Press 'z' to quit.\n"
 )
 
 def move_to_initial(spot):
@@ -43,6 +47,10 @@ def move_to_initial(spot):
     spot.block_until_arm_arrives(cmd_id, timeout_sec=0.8)
 
     return point, rpy
+
+
+def raise_error(sig, frame):
+    raise RuntimeError
 
 
 def main(spot: Spot):
@@ -56,20 +64,19 @@ def main(spot: Spot):
     # Move arm to initial configuration
     point, rpy = move_to_initial(spot)
     control_arm = True
-    print(INSTRUCTIONS)
+
+    # Start in-terminal GUI
+    stdscr = curses.initscr()
+    stdscr.nodelay(True)
+    curses.noecho()
+    signal.signal(signal.SIGINT, raise_error)
+    stdscr.addstr(INSTRUCTIONS)
     try:
         while True:
             point_rpy = np.concatenate([point, rpy])
-
-            with keyboard.Events() as events:
-                # Wait for as many seconds as possible
-                pressed_key = events.get(int(1e6)).key
-                if "char" in pressed_key.__dict__:
-                    pressed_key = pressed_key.char
-                elif "_name_" in pressed_key.__dict__:
-                    pressed_key = pressed_key._name_
-                else:
-                    pressed_key = None
+            pressed_key = stdscr.getch()
+            if pressed_key != -1:
+                pressed_key = chr(pressed_key)
 
             if pressed_key == 'z':
                 # Quit
@@ -100,13 +107,16 @@ def main(spot: Spot):
                         spot.block_until_arm_arrives(cmd_id, timeout_sec=0.5)
                 else:
                     if pressed_key in KEY2BASEMOVEMENT:
-                        # Rotate base towards left
+                        # Move base
                         x_vel, y_vel, ang_vel = KEY2BASEMOVEMENT[pressed_key]
                         spot.set_base_velocity(
                             x_vel=x_vel, y_vel=y_vel, ang_vel=ang_vel, vel_time=0.5
                         )
     finally:
         spot.power_off()
+        curses.echo()
+        stdscr.nodelay(False)
+        curses.endwin()
 
 
 if __name__ == "__main__":
