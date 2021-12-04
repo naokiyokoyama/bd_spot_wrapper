@@ -31,7 +31,10 @@ KEY2BASEMOVEMENT = {
     'a': [0.0, BASE_LIN_VEL, 0.0],  # strafe left
     'd': [0.0, -BASE_LIN_VEL, 0.0],  # strafe right
 }
-
+INSTRUCTIONS = (
+    "Use 'wasdqe' and 'ijkl' keys to control robot. Press 't' to toggle between "
+    "controlling the arm or the base."
+)
 
 def move_to_initial(spot):
     point = INITIAL_POINT
@@ -53,6 +56,7 @@ def main(spot: Spot):
     # Move arm to initial configuration
     point, rpy = move_to_initial(spot)
     control_arm = True
+    print(INSTRUCTIONS)
     try:
         while True:
             point_rpy = np.concatenate([point, rpy])
