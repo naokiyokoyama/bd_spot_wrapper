@@ -55,7 +55,7 @@ def color_bbox(img):
     x, y, w, h = cv2.boundingRect(color_mask)
     height, width = color_mask.shape
     cx, cy = [
-        (start + side_length) / max_length
+        int((start + side_length / 2) / max_length)
         for start, side_length, max_length in [
             (x, w, width),
             (y, h, height),
