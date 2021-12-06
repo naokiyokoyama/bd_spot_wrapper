@@ -5,20 +5,10 @@
 # Development Kit License (20191101-BDSDK-SL).
 
 """ Easy-to-use wrapper for properly controlling Spot """
-import cv2
-import os
 import bosdyn.client
 import bosdyn.client.lease
 import bosdyn.client.util
 from bosdyn import geometry
-from bosdyn.client.robot_command import (
-    RobotCommandClient,
-    blocking_stand,
-    block_until_arm_arrives,
-)
-from bosdyn.client import math_helpers
-from bosdyn.client.image import ImageClient
-from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.api import (
     image_pb2,
     geometry_pb2,
@@ -28,19 +18,28 @@ from bosdyn.api import (
     arm_command_pb2,
     synchronized_command_pb2,
 )
-from bosdyn.client.robot_command import RobotCommandBuilder
+from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
+from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
     get_vision_tform_body,
     HAND_FRAME_NAME,
 )
-
-from bosdyn.api import robot_command_pb2
-from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
-from bosdyn.api import arm_command_pb2
-from bosdyn.api import synchronized_command_pb2
-import time
+from bosdyn.client.image import ImageClient
+from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.client.robot_command import (
+    RobotCommandClient,
+    RobotCommandBuilder,
+    blocking_stand,
+    block_until_arm_arrives,
+)
+from bosdyn.client.robot_state import RobotStateClient
+from collections import OrderedDict
+import cv2
+from google.protobuf import wrappers_pb2
+import os
 import numpy as np
+import time
 
 try:
     SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
@@ -196,7 +195,7 @@ class Spot:
             manipulation_api_request=grasp_request
         )
 
-        # Get feedback from the robot
+        # Get feedback from the robot (WILL BLOCK TILL COMPLETION)
         while True:
             feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
                 manipulation_cmd_id=cmd_response.manipulation_cmd_id
@@ -245,11 +244,52 @@ class Spot:
 
         return cmd_id
 
+    def get_arm_proprioception(self):
+        robot_state_client = self.robot.ensure_client(
+            RobotStateClient.default_service_name
+        )
+        agent_kinematic_state = robot_state_client.get_robot_state().kinematic_state
+        arm_joint_states = OrderedDict(
+            {
+                i.name[len("arm0.") :]: i
+                for i in agent_kinematic_state.joint_states
+                if i.name.startswith("arm0")
+            }
+        )
+
+        return arm_joint_states
+
+    def set_arm_joint_positions(
+        self, positions, travel_time=1.0, max_vel=2.5, max_acc=15
+    ):
+        """
+        Takes in 6 joint targets and moves each arm joint to the corresponding target.
+        Ordering: sh0, sh1, el0, el1, wr0, wr1
+        :param positions: np.array or list of radians
+        :param travel_time: how long execution should take
+        :param max_vel: max allowable velocity
+        :param max_acc: max allowable acceleration
+        :return: cmd_id
+        """
+        sh0, sh1, el0, el1, wr0, wr1 = positions
+        traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(
+            sh0, sh1, el0, el1, wr0, wr1, travel_time
+        )
+        arm_joint_traj = arm_command_pb2.ArmJointTrajectory(
+            points=[traj_point],
+            maximum_velocity=wrappers_pb2.DoubleValue(value=max_vel),
+            maximum_acceleration=wrappers_pb2.DoubleValue(value=max_acc),
+        )
+        command = make_robot_command(arm_joint_traj)
+        cmd_id = self.command_client.robot_command(command)
+
+        return cmd_id
+
 
 class SpotLease:
     """
     A class that supports execution with Python's "with" statement for safe return of
-    the lease upon exit. Grants control of the Spot's motor.
+    the lease upon exit. Grants control of the Spot's motors.
     """
 
     def __init__(self, spot, hijack=False):
@@ -274,6 +314,24 @@ class SpotLease:
         self.spot.loginfo("Returned the lease.")
         # Clear lease from Spot object
         self.spot.spot_lease = None
+
+
+def make_robot_command(arm_joint_traj):
+    """Helper function to create a RobotCommand from an ArmJointTrajectory.
+    The returned command will be a SynchronizedCommand with an ArmJointMoveCommand
+    filled out to follow the passed in trajectory."""
+
+    joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
+        trajectory=arm_joint_traj
+    )
+    arm_command = arm_command_pb2.ArmCommand.Request(
+        arm_joint_move_command=joint_move_command
+    )
+    sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
+        arm_command=arm_command
+    )
+    arm_sync_robot_cmd = robot_command_pb2.RobotCommand(synchronized_command=sync_arm)
+    return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
 
 def image_response_to_cv2(image_response):

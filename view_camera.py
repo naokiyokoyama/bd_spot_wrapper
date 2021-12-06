@@ -19,7 +19,7 @@ def main(spot: Spot):
                 center=(cx, cy),
                 radius=5,
                 color=(0, 0, 255),
-                thickness=1
+                thickness=1,
             )
 
             cv2.imshow(window_name, img)
