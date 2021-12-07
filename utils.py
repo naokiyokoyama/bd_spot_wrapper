@@ -23,8 +23,8 @@ def erode_inflate(mask, size=20):
 
 
 def contour_mask(mask):
-    _, cnt, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-    new_mask = np.zeros(mask.shape)
+    cnt, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    new_mask = np.zeros(mask.shape, dtype=np.uint8)
     max_area = 0
     max_index = 0
     for idx, c in enumerate(cnt):
@@ -37,7 +37,7 @@ def contour_mask(mask):
     return new_mask
 
 
-def color_bbox(img):
+def color_bbox(img, just_get_bbox=False):
     """Makes a bbox around a white object"""
     # Filter out non-white
     upper = np.array([255, 255, 255])
@@ -53,6 +53,10 @@ def color_bbox(img):
 
     # Calculate bbox
     x, y, w, h = cv2.boundingRect(color_mask)
+
+    if just_get_bbox:
+        return x, y, w, h
+
     height, width = color_mask.shape
     cx, cy = [
         int((start + side_length / 2) / max_length)
