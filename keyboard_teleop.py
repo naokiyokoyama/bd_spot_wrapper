@@ -1,4 +1,4 @@
-from spot import Spot, HAND_RGB_UUID
+from spot import Spot, SpotCamIds
 import numpy as np
 import time
 import curses
@@ -88,7 +88,7 @@ def main(spot: Spot):
                 time.sleep(0.2)  # Wait before we starting listening again
             elif pressed_key == 'g':
                 # Grab whatever object is at the center of hand RGB camera image
-                image_responses = spot.get_image_responses([HAND_RGB_UUID])
+                image_responses = spot.get_image_responses([SpotCamIds.HAND_COLOR])
                 hand_image_response = image_responses[0]  # only expecting one image
                 spot.grasp_point_in_image(hand_image_response)
                 # Retract arm back to initial configuration
@@ -121,5 +121,5 @@ def main(spot: Spot):
 
 if __name__ == "__main__":
     spot = Spot("ArmKeyboardTeleop")
-    with spot.get_lease() as lease:
+    with spot.get_lease(hijack=True) as lease:
         main(spot)

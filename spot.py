@@ -36,6 +36,7 @@ from bosdyn.client.robot_command import (
 from bosdyn.client.robot_state import RobotStateClient
 from collections import OrderedDict
 import cv2
+from enum import Enum
 from google.protobuf import wrappers_pb2
 import os
 import numpy as np
@@ -52,8 +53,39 @@ except KeyError:
         "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
     )
 
-HAND_RGB_UUID = "hand_color_image"
-IMG_UUIDS = [HAND_RGB_UUID]
+ARM_6DOF_NAMES = [
+    "arm0.sh0",
+    "arm0.sh1",
+    "arm0.el0",
+    "arm0.el1",
+    "arm0.wr0",
+    "arm0.wr1",
+]
+
+
+class SpotCamIds(Enum):
+    r"""Enumeration of types of cameras."""
+
+    BACK_DEPTH = "back_depth"
+    BACK_DEPTH_IN_VISUAL_FRAME = "back_depth_in_visual_frame"
+    BACK_FISHEYE = "back_fisheye_image"
+    FRONTLEFT_DEPTH = "frontleft_depth"
+    FRONTLEFT_DEPTH_IN_VISUAL_FRAME = "frontleft_depth_in_visual_frame"
+    FRONTLEFT_FISHEYE = "frontleft_fisheye_image"
+    FRONTRIGHT_DEPTH = "frontright_depth"
+    FRONTRIGHT_DEPTH_IN_VISUAL_FRAME = "frontright_depth_in_visual_frame"
+    FRONTRIGHT_FISHEYE = "frontright_fisheye_image"
+    HAND_COLOR = "hand_color_image"
+    HAND_COLOR_IN_HAND_DEPTH_FRAME = "hand_color_in_hand_depth_frame"
+    HAND_DEPTH = "hand_depth"
+    HAND_DEPTH_IN_HAND_COLOR_FRAME = "hand_depth_in_hand_color_frame"
+    HAND = "hand_image"
+    LEFT_DEPTH = "left_depth"
+    LEFT_DEPTH_IN_VISUAL_FRAME = "left_depth_in_visual_frame"
+    LEFT_FISHEYE = "left_fisheye_image"
+    RIGHT_DEPTH = "right_depth"
+    RIGHT_DEPTH_IN_VISUAL_FRAME = "right_depth_in_visual_frame"
+    RIGHT_FISHEYE = "right_fisheye_image"
 
 
 class Spot:
@@ -66,6 +98,18 @@ class Spot:
         self.robot = robot
         self.command_client = None
         self.spot_lease = None
+
+        # Get clients
+        self.command_client = robot.ensure_client(
+            RobotCommandClient.default_service_name
+        )
+        self.image_client = robot.ensure_client(ImageClient.default_service_name)
+        self.manipulation_api_client = robot.ensure_client(
+            ManipulationApiClient.default_service_name
+        )
+        self.robot_state_client = robot.ensure_client(
+            RobotStateClient.default_service_name
+        )
 
     def get_lease(self, hijack=False):
         # Make sure a lease for this client isn't already active
@@ -82,8 +126,6 @@ class Spot:
         self.robot.power_on(timeout_sec=timeout_sec)
         assert self.robot.is_powered_on(), "Robot power on failed."
         self.loginfo("Robot powered on.")
-        # Just assign a command client by default when the robot is turned on
-        self.get_command_client(service_name=service_name)
 
     def power_off(self, cut_immediately=False, timeout_sec=20):
         self.loginfo("Powering robot off...")
@@ -98,10 +140,6 @@ class Spot:
 
     def loginfo(self, *args, **kwargs):
         self.robot.logger.info(*args, **kwargs)
-
-    def get_command_client(self, service_name=RobotCommandClient.default_service_name):
-        self.command_client = self.robot.ensure_client(service_name)
-        return self.command_client
 
     def open_gripper(self):
         """Does not block, be careful!"""
@@ -159,11 +197,9 @@ class Spot:
         :param sources: list containing camera uuids
         :return: list containing bosdyn image response objects
         """
-        assert all(
-            [src in IMG_UUIDS for src in sources]
-        ), "An invalid camera uuid was provided!"
-        image_client = self.robot.ensure_client(ImageClient.default_service_name)
-        image_responses = image_client.get_image_from_sources(sources)
+        image_responses = self.image_client.get_image_from_sources(
+            [s.value for s in sources]
+        )
         return image_responses
 
     def grasp_point_in_image(self, image_response, pixel_xy=None):
@@ -172,10 +208,6 @@ class Spot:
             height = image_response.shot.image.rows
             width = image_response.shot.image.cols
             pixel_xy = [width // 2, height // 2]
-
-        manipulation_api_client = self.robot.ensure_client(
-            ManipulationApiClient.default_service_name
-        )
 
         pick_vec = geometry_pb2.Vec2(x=pixel_xy[0], y=pixel_xy[1])
         grasp = manipulation_api_pb2.PickObjectInImage(
@@ -191,7 +223,7 @@ class Spot:
             pick_object_in_image=grasp
         )
         # Send the request
-        cmd_response = manipulation_api_client.manipulation_api_command(
+        cmd_response = self.manipulation_api_client.manipulation_api_command(
             manipulation_api_request=grasp_request
         )
 
@@ -202,7 +234,7 @@ class Spot:
             )
 
             # Send the request
-            response = manipulation_api_client.manipulation_api_feedback_command(
+            response = self.manipulation_api_client.manipulation_api_feedback_command(
                 manipulation_api_feedback_request=feedback_request
             )
 
@@ -220,6 +252,14 @@ class Spot:
                 break
 
             time.sleep(0.25)
+
+    def grasp_center_of_hand_depth(self):
+        # Grab whatever object is at the center of hand depth camera image
+        image_responses = self.get_image_responses(
+            [SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
+        )
+        hand_image_response = image_responses[0]  # only expecting one image
+        self.grasp_point_in_image(hand_image_response)
 
     def set_base_velocity(self, x_vel, y_vel, ang_vel, vel_time, params=None):
         body_tform_goal = math_helpers.SE2Velocity(x=x_vel, y=y_vel, angular=ang_vel)
@@ -245,15 +285,13 @@ class Spot:
         return cmd_id
 
     def get_arm_proprioception(self):
-        robot_state_client = self.robot.ensure_client(
-            RobotStateClient.default_service_name
-        )
-        agent_kinematic_state = robot_state_client.get_robot_state().kinematic_state
+        """Return state of each of the 6 joints of the arm"""
+        agent_state = self.robot_state_client.get_robot_state()
         arm_joint_states = OrderedDict(
             {
                 i.name[len("arm0.") :]: i
-                for i in agent_kinematic_state.joint_states
-                if i.name.startswith("arm0")
+                for i in agent_state.kinematic_state.joint_states
+                if i.name in ARM_6DOF_NAMES
             }
         )
 
@@ -339,7 +377,8 @@ def image_response_to_cv2(image_response):
         dtype = np.uint16
     else:
         dtype = np.uint8
-    img = np.fromstring(image_response.shot.image.data, dtype=dtype)
+    # img = np.fromstring(image_response.shot.image.data, dtype=dtype)
+    img = np.frombuffer(image_response.shot.image.data, dtype=dtype)
     if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
         img = img.reshape(
             image_response.shot.image.rows, image_response.shot.image.cols
@@ -348,3 +387,34 @@ def image_response_to_cv2(image_response):
         img = cv2.imdecode(img, -1)
 
     return img
+
+
+def scale_depth_img(img, min_depth=0.0, max_depth=10.0, as_img=False):
+    min_depth, max_depth = min_depth * 1000, max_depth * 1000
+    img_copy = np.clip(img.astype(np.float32), a_min=min_depth, a_max=max_depth)
+    img_copy = (img_copy - min_depth) / (max_depth - min_depth)
+    if as_img:
+        img_copy = cv2.cvtColor(
+            (255.0 * img_copy).astype(np.uint8), cv2.COLOR_GRAY2BGR
+        )
+
+    return img_copy
+
+
+def draw_crosshair(img):
+    height, width = img.shape[:2]
+    cx, cy = width // 2, height // 2
+    img = cv2.circle(
+        img,
+        center=(cx, cy),
+        radius=5,
+        color=(0, 0, 255),
+        thickness=1,
+    )
+
+    return img
+
+
+def wrap_heading(heading):
+    """Ensures input heading is between -180 an 180; can be float or np.ndarray"""
+    return (heading + np.pi) % (2 * np.pi) - np.pi

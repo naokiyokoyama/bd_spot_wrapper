@@ -1,5 +1,13 @@
 import cv2
 import numpy as np
+import subprocess
+
+
+def say(text):
+    try:
+        subprocess.Popen(("say " + text).split())
+    except:
+        print(f'"{text}"')
 
 
 def inflate_erode(mask, size=50):
@@ -40,9 +48,10 @@ def contour_mask(mask):
 def color_bbox(img, just_get_bbox=False):
     """Makes a bbox around a white object"""
     # Filter out non-white
-    upper = np.array([255, 255, 255])
-    lower = upper - 30
-    color_mask = cv2.inRange(img, lower, upper)
+    sensitivity = 80
+    upper_white = np.array([255, 255, 255])
+    lower_white = upper_white - sensitivity
+    color_mask = cv2.inRange(img, lower_white, upper_white)
 
     # Filter out little bits of white
     color_mask = inflate_erode(color_mask)
@@ -58,16 +67,14 @@ def color_bbox(img, just_get_bbox=False):
         return x, y, w, h
 
     height, width = color_mask.shape
-    cx, cy = [
-        int((start + side_length / 2) / max_length)
-        for start, side_length, max_length in [
-            (x, w, width),
-            (y, h, height),
-        ]
-    ]
+    cx = (x + w / 2.0) / width
+    cy = (y + h / 2.0) / height
 
     # Create bbox mask
     bbox_mask = np.zeros([height, width, 1], dtype=np.float32)
     bbox_mask[y : y + h, x : x + w] = 1.0
 
-    return bbox_mask, cx, cy
+    # Determine if bbox intersects with central crosshair
+    crosshair_in_bbox = x < width // 2 < x + w and y < height // 2 < y + h
+
+    return bbox_mask, cx, cy, crosshair_in_bbox
