@@ -323,11 +323,21 @@ class Spot:
 
         return cmd_id
 
+    def get_xy_yaw(self):
+        """
+        Returns the relative x and y distance from start, as well as relative heading
+        """
+        robot_state_kin = self.robot_state_client.get_robot_state().kinematic_state
+        robot_state = get_vision_tform_body(robot_state_kin.transforms_snapshot)
+        yaw = math_helpers.quat_to_eulerZYX(robot_state.rotation)[0]
+
+        return robot_state.x, robot_state.y, yaw
+
 
 class SpotLease:
     """
     A class that supports execution with Python's "with" statement for safe return of
-    the lease upon exit. Grants control of the Spot's motors.
+    the lease and settle-then-estop upon exit. Grants control of the Spot's motors.
     """
 
     def __init__(self, spot, hijack=False):
