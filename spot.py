@@ -146,6 +146,11 @@ class Spot:
         gripper_command = RobotCommandBuilder.claw_gripper_open_command()
         self.command_client.robot_command(gripper_command)
 
+    def close_gripper(self):
+        """Does not block, be careful!"""
+        gripper_command = RobotCommandBuilder.claw_gripper_close_command()
+        self.command_client.robot_command(gripper_command)
+
     def move_gripper_to_point(self, point, rotation):
         """
         Moves EE to a point relative to body frame
@@ -332,6 +337,13 @@ class Spot:
         yaw = math_helpers.quat_to_eulerZYX(robot_state.rotation)[0]
 
         return robot_state.x, robot_state.y, yaw
+
+    def get_base_transform_to(self, child_frame):
+        kin_state = self.robot_state_client.get_robot_state().kinematic_state
+        kin_state = kin_state.transforms_snapshot.child_to_parent_edge_map.get(
+            child_frame
+        ).parent_tform_child
+        return kin_state.position, kin_state.rotation
 
 
 class SpotLease:
