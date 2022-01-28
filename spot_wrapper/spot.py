@@ -5,42 +5,43 @@
 # Development Kit License (20191101-BDSDK-SL).
 
 """ Easy-to-use wrapper for properly controlling Spot """
+import os
+import time
+from collections import OrderedDict
+from enum import Enum
+
 import bosdyn.client
 import bosdyn.client.lease
 import bosdyn.client.util
+import cv2
+import numpy as np
 from bosdyn import geometry
 from bosdyn.api import (
-    image_pb2,
-    geometry_pb2,
-    manipulation_api_pb2,
-    trajectory_pb2,
-    robot_command_pb2,
     arm_command_pb2,
+    geometry_pb2,
+    image_pb2,
+    manipulation_api_pb2,
+    robot_command_pb2,
     synchronized_command_pb2,
+    trajectory_pb2,
 )
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
-    get_vision_tform_body,
     HAND_FRAME_NAME,
+    get_vision_tform_body,
 )
 from bosdyn.client.image import ImageClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot_command import (
-    RobotCommandClient,
     RobotCommandBuilder,
-    blocking_stand,
+    RobotCommandClient,
     block_until_arm_arrives,
+    blocking_stand,
 )
 from bosdyn.client.robot_state import RobotStateClient
-from collections import OrderedDict
-import cv2
-from enum import Enum
 from google.protobuf import wrappers_pb2
-import os
-import numpy as np
-import time
 
 try:
     SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
@@ -110,6 +111,10 @@ class Spot:
         self.robot_state_client = robot.ensure_client(
             RobotStateClient.default_service_name
         )
+
+        # Used to re-center origin of global frame
+        self.global_T_local = None
+        self.robot_recenter_yaw = None
 
     def get_lease(self, hijack=False):
         # Make sure a lease for this client isn't already active
@@ -335,8 +340,27 @@ class Spot:
         robot_state_kin = self.robot_state_client.get_robot_state().kinematic_state
         robot_state = get_vision_tform_body(robot_state_kin.transforms_snapshot)
         yaw = math_helpers.quat_to_eulerZYX(robot_state.rotation)[0]
+        if self.global_T_local is None:
+            return robot_state.x, robot_state.y, yaw
+        x, y, w = self.global_T_local.dot(np.array([robot_state.x, robot_state.y, 1.0]))
+        x, y = x / w, y / w
+        yaw = wrap_heading(yaw - self.robot_recenter_yaw)
 
-        return robot_state.x, robot_state.y, yaw
+        return x, y, yaw
+
+    def recenter_robot_location(self):
+        self.global_T_local = None
+        x, y, yaw = self.get_xy_yaw()
+        # Create offset transformation matrix
+        local_T_global = np.array(
+            [
+                [np.cos(yaw), -np.sin(yaw), x],
+                [np.sin(yaw), np.cos(yaw), y],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        self.global_T_local = np.linalg.inv(local_T_global)
+        self.robot_recenter_yaw = yaw
 
     def get_base_transform_to(self, child_frame):
         kin_state = self.robot_state_client.get_robot_state().kinematic_state
@@ -416,9 +440,7 @@ def scale_depth_img(img, min_depth=0.0, max_depth=10.0, as_img=False):
     img_copy = np.clip(img.astype(np.float32), a_min=min_depth, a_max=max_depth)
     img_copy = (img_copy - min_depth) / (max_depth - min_depth)
     if as_img:
-        img_copy = cv2.cvtColor(
-            (255.0 * img_copy).astype(np.uint8), cv2.COLOR_GRAY2BGR
-        )
+        img_copy = cv2.cvtColor((255.0 * img_copy).astype(np.uint8), cv2.COLOR_GRAY2BGR)
 
     return img_copy
 
