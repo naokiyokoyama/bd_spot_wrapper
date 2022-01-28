@@ -1,40 +1,29 @@
-from spot import (
-    Spot,
-    SpotCamIds,
-    image_response_to_cv2,
-    scale_depth_img,
-    draw_crosshair,
-)
-from utils import color_bbox
+import time
+from collections import deque
+
 import cv2
 import numpy as np
-from collections import deque
-import time
+from spot_wrapper.spot import (
+    Spot,
+    SpotCamIds,
+    draw_crosshair,
+    image_response_to_cv2,
+    scale_depth_img,
+)
+from spot_wrapper.utils import color_bbox
 
 MAX_HAND_DEPTH = 3.0
 MAX_HEAD_DEPTH = 10.0
 DETECT_LARGEST_WHITE_OBJECT = True
 
-from bosdyn.client.frame_helpers import BODY_FRAME_NAME, get_vision_tform_body, get_a_tform_b
 
 def main(spot: Spot):
     window_name = "spot camera viewer"
     time_buffer = deque(maxlen=30)
-    # sources = [SpotCamIds.HAND_COLOR, SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
-    # sources = [SpotCamIds.HAND_COLOR, SpotCamIds.HAND_DEPTH]
-    # sources = [
-    #     SpotCamIds.HAND_COLOR,
-    #     SpotCamIds.HAND_DEPTH,
-    #     # SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME,
-    # ]
     sources = [
         SpotCamIds.FRONTRIGHT_DEPTH,
         SpotCamIds.FRONTLEFT_DEPTH,
     ]
-    # sources = [SpotCamIds.HAND_COLOR]
-    # sources = [SpotCamIds.FRONTLEFT_DEPTH_IN_VISUAL_FRAME, SpotCamIds.HAND_COLOR]
-    # sources = [SpotCamIds.FRONTRIGHT_FISHEYE, SpotCamIds.FRONTLEFT_FISHEYE]
-    # sources = [SpotCamIds.HAND_DEPTH]
     try:
         while True:
             start_time = time.time()
@@ -43,22 +32,12 @@ def main(spot: Spot):
             image_responses = spot.get_image_responses(sources)
             imgs = []
             for image_response, source in zip(image_responses, sources):
-                # print(source, image_response.body_T_image_sensor, image_response.body_T_image_sensor.position, image_response.body_T_image_sensor.rotation)
-                body_T_image_sensor = get_a_tform_b(
-                    image_response.shot.transforms_snapshot,
-                    BODY_FRAME_NAME, image_response.shot.frame_name_image_sensor
-                )
-                print(source, body_T_image_sensor.position, body_T_image_sensor.rotation)
-                img = image_response_to_cv2(image_response)
-                if "depth" in source.value:
-                    if "frame" not in source.value:
-                        img = np.rot90(img, k=3)
-                    max_depth = (
-                        MAX_HAND_DEPTH if "hand" in source.value else MAX_HEAD_DEPTH
-                    )
+                img = image_response_to_cv2(image_response, reorient=True)
+                print(img.shape)
+                if "depth" in source:
+                    max_depth = MAX_HAND_DEPTH if "hand" in source else MAX_HEAD_DEPTH
                     img = scale_depth_img(img, max_depth=max_depth, as_img=True)
                     if source is SpotCamIds.HAND_DEPTH:
-                        img = np.rot90(img, k=3)
                         img = cv2.resize(img, (480, 480))
                 elif source is SpotCamIds.HAND_COLOR:
                     img = draw_crosshair(img)

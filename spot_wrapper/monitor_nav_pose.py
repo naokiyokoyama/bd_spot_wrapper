@@ -1,7 +1,7 @@
 import time
 
 import numpy as np
-from spot import Spot
+from spot_wrapper.spot import Spot
 
 
 def main(spot: Spot):

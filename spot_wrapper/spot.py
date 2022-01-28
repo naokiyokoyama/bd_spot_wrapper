@@ -67,7 +67,7 @@ ARM_6DOF_NAMES = [
 HOME_TXT = osp.join(osp.dirname(osp.abspath(__file__)), "home.txt")
 
 
-class SpotCamIds(Enum):
+class SpotCamIds:
     r"""Enumeration of types of cameras."""
 
     BACK_DEPTH = "back_depth"
@@ -90,6 +90,14 @@ class SpotCamIds(Enum):
     RIGHT_DEPTH = "right_depth"
     RIGHT_DEPTH_IN_VISUAL_FRAME = "right_depth_in_visual_frame"
     RIGHT_FISHEYE = "right_fisheye_image"
+
+
+SHOULD_ROTATE = [
+    SpotCamIds.FRONTLEFT_DEPTH,
+    SpotCamIds.FRONTRIGHT_DEPTH,
+    SpotCamIds.HAND_DEPTH,
+    SpotCamIds.HAND,
+]
 
 
 class Spot:
@@ -217,9 +225,7 @@ class Spot:
         :param sources: list containing camera uuids
         :return: list containing bosdyn image response objects
         """
-        image_responses = self.image_client.get_image_from_sources(
-            [s.value for s in sources]
-        )
+        image_responses = self.image_client.get_image_from_sources(sources)
         return image_responses
 
     def grasp_point_in_image(self, image_response, pixel_xy=None):
@@ -431,7 +437,7 @@ def make_robot_command(arm_joint_traj):
     return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
 
-def image_response_to_cv2(image_response):
+def image_response_to_cv2(image_response, reorient=True):
     if image_response.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_DEPTH_U16:
         dtype = np.uint16
     else:
@@ -444,6 +450,9 @@ def image_response_to_cv2(image_response):
         )
     else:
         img = cv2.imdecode(img, -1)
+
+    if reorient and image_response.source.name in SHOULD_ROTATE:
+        img = np.rot90(img, k=3)
 
     return img
 
