@@ -23,6 +23,8 @@ def main(spot: Spot):
     sources = [
         SpotCamIds.FRONTRIGHT_DEPTH,
         SpotCamIds.FRONTLEFT_DEPTH,
+        SpotCamIds.HAND_DEPTH,
+        SpotCamIds.HAND_COLOR,
     ]
     try:
         while True:
@@ -33,12 +35,9 @@ def main(spot: Spot):
             imgs = []
             for image_response, source in zip(image_responses, sources):
                 img = image_response_to_cv2(image_response, reorient=True)
-                print(img.shape)
                 if "depth" in source:
                     max_depth = MAX_HAND_DEPTH if "hand" in source else MAX_HEAD_DEPTH
                     img = scale_depth_img(img, max_depth=max_depth, as_img=True)
-                    if source is SpotCamIds.HAND_DEPTH:
-                        img = cv2.resize(img, (480, 480))
                 elif source is SpotCamIds.HAND_COLOR:
                     img = draw_crosshair(img)
                     if DETECT_LARGEST_WHITE_OBJECT:
@@ -46,6 +45,14 @@ def main(spot: Spot):
                         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
                 imgs.append(img)
+
+            # Make sure all imgs are same height
+            tallest = max([i.shape[0] for i in imgs])
+            for idx, i in enumerate(imgs):
+                height, width = i.shape[:2]
+                if height != tallest:
+                    new_width = int(width * (tallest / height))
+                    imgs[idx] = cv2.resize(i, (new_width, tallest))
 
             img = np.hstack(imgs)
 
