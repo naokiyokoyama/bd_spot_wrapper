@@ -6,6 +6,7 @@
 
 """ Easy-to-use wrapper for properly controlling Spot """
 import os
+import os.path as osp
 import time
 from collections import OrderedDict
 from enum import Enum
@@ -63,6 +64,8 @@ ARM_6DOF_NAMES = [
     "arm0.wr1",
 ]
 
+HOME_TXT = osp.join(osp.dirname(osp.abspath(__file__)), "home.txt")
+
 
 class SpotCamIds(Enum):
     r"""Enumeration of types of cameras."""
@@ -113,8 +116,15 @@ class Spot:
         )
 
         # Used to re-center origin of global frame
-        self.global_T_local = None
-        self.robot_recenter_yaw = None
+        if osp.isfile(HOME_TXT):
+            with open(HOME_TXT) as f:
+                data = f.read()
+            self.global_T_local = np.array([float(d) for d in data.split(", ")[:9]])
+            self.global_T_local = self.global_T_local.reshape([3, 3])
+            self.robot_recenter_yaw = float(data.split(", ")[-1])
+        else:
+            self.global_T_local = None
+            self.robot_recenter_yaw = None
 
     def get_lease(self, hijack=False):
         # Make sure a lease for this client isn't already active
@@ -348,8 +358,7 @@ class Spot:
 
         return x, y, yaw
 
-    def recenter_robot_location(self):
-        self.global_T_local = None
+    def home_robot(self):
         x, y, yaw = self.get_xy_yaw()
         # Create offset transformation matrix
         local_T_global = np.array(
@@ -361,6 +370,10 @@ class Spot:
         )
         self.global_T_local = np.linalg.inv(local_T_global)
         self.robot_recenter_yaw = yaw
+
+        as_string = list(self.global_T_local.flatten()) + [yaw]
+        with open(HOME_TXT, "w") as f:
+            f.write(f"{as_string}"[1:-1])  # [1:-1] removes brackets
 
     def get_base_transform_to(self, child_frame):
         kin_state = self.robot_state_client.get_robot_state().kinematic_state

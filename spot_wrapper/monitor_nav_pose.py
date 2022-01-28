@@ -1,6 +1,7 @@
-from spot import Spot
-import numpy as np
 import time
+
+import numpy as np
+from spot import Spot
 
 
 def main(spot: Spot):
