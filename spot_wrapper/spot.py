@@ -377,8 +377,10 @@ class Spot:
         self.robot_recenter_yaw = yaw
 
         as_string = list(self.global_T_local.flatten()) + [yaw]
+        as_string = f"{as_string}"[1:-1]  # [1:-1] removes brackets
         with open(HOME_TXT, "w") as f:
-            f.write(f"{as_string}"[1:-1])  # [1:-1] removes brackets
+            f.write(as_string)
+        self.loginfo(f"Wrote:\n{as_string}\nto: {HOME_TXT}")
 
     def get_base_transform_to(self, child_frame):
         kin_state = self.robot_state_client.get_robot_state().kinematic_state
