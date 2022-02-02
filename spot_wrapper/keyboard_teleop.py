@@ -1,8 +1,9 @@
-from spot import Spot, SpotCamIds
-import numpy as np
-import time
 import curses
 import signal
+import time
+
+import numpy as np
+from spot_wrapper.spot import Spot, SpotCamIds
 
 MOVE_INCREMENT = 0.02
 TILT_INCREMENT = 5.0
@@ -13,24 +14,24 @@ BASE_LIN_VEL = 0.5
 INITIAL_POINT = np.array([0.75, 0.0, 0.35])
 INITIAL_RPY = np.deg2rad([0.0, 60.0, 0.0])
 KEY2GRIPPERMOVEMENT = {
-    'w': np.array([0.0, 0.0, MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move up
-    's': np.array([0.0, 0.0, -MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move down
-    'a': np.array([0.0, MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0]),  # move left
-    'd': np.array([0.0, -MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0]),  # move right
-    'q': np.array([MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0, 0.0]),  # move forward
-    'e': np.array([-MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0, 0.0]),  # move backward
-    'i': np.deg2rad([0.0, 0.0, 0.0, 0.0, -TILT_INCREMENT, 0.0]),  # pitch up
-    'k': np.deg2rad([0.0, 0.0, 0.0, 0.0, TILT_INCREMENT, 0.0]),  # pitch down
-    'j': np.deg2rad([0.0, 0.0, 0.0, 0.0, 0.0, TILT_INCREMENT]),  # pan left
-    'l': np.deg2rad([0.0, 0.0, 0.0, 0.0, 0.0, -TILT_INCREMENT]),  # pan right
+    "w": np.array([0.0, 0.0, MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move up
+    "s": np.array([0.0, 0.0, -MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move down
+    "a": np.array([0.0, MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0]),  # move left
+    "d": np.array([0.0, -MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0]),  # move right
+    "q": np.array([MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0, 0.0]),  # move forward
+    "e": np.array([-MOVE_INCREMENT, 0.0, 0.0, 0.0, 0.0, 0.0]),  # move backward
+    "i": np.deg2rad([0.0, 0.0, 0.0, 0.0, -TILT_INCREMENT, 0.0]),  # pitch up
+    "k": np.deg2rad([0.0, 0.0, 0.0, 0.0, TILT_INCREMENT, 0.0]),  # pitch down
+    "j": np.deg2rad([0.0, 0.0, 0.0, 0.0, 0.0, TILT_INCREMENT]),  # pan left
+    "l": np.deg2rad([0.0, 0.0, 0.0, 0.0, 0.0, -TILT_INCREMENT]),  # pan right
 }
 KEY2BASEMOVEMENT = {
-    'q': [0.0, 0.0, BASE_ANGULAR_VEL],  # turn left
-    'e': [0.0, 0.0, -BASE_ANGULAR_VEL],  # turn right
-    'w': [BASE_LIN_VEL, 0.0, 0.0],  # go forward
-    's': [-BASE_LIN_VEL, 0.0, 0.0],  # go backward
-    'a': [0.0, BASE_LIN_VEL, 0.0],  # strafe left
-    'd': [0.0, -BASE_LIN_VEL, 0.0],  # strafe right
+    "q": [0.0, 0.0, BASE_ANGULAR_VEL],  # turn left
+    "e": [0.0, 0.0, -BASE_ANGULAR_VEL],  # turn right
+    "w": [BASE_LIN_VEL, 0.0, 0.0],  # go forward
+    "s": [-BASE_LIN_VEL, 0.0, 0.0],  # go backward
+    "a": [0.0, BASE_LIN_VEL, 0.0],  # strafe left
+    "d": [0.0, -BASE_LIN_VEL, 0.0],  # strafe right
 }
 INSTRUCTIONS = (
     "Use 'wasdqe' for translating gripper, 'ijkl' for rotating.\n"
@@ -39,6 +40,7 @@ INSTRUCTIONS = (
     "('wasdqe' will control base).\n"
     "Press 'z' to quit.\n"
 )
+
 
 def move_to_initial(spot):
     point = INITIAL_POINT
@@ -78,22 +80,22 @@ def main(spot: Spot):
             if pressed_key != -1:
                 pressed_key = chr(pressed_key)
 
-            if pressed_key == 'z':
+            if pressed_key == "z":
                 # Quit
                 break
-            elif pressed_key == 't':
+            elif pressed_key == "t":
                 # Toggle between controlling arm or base
                 control_arm = not control_arm
                 spot.loginfo(f"control_arm: {control_arm}")
                 time.sleep(0.2)  # Wait before we starting listening again
-            elif pressed_key == 'g':
+            elif pressed_key == "g":
                 # Grab whatever object is at the center of hand RGB camera image
                 image_responses = spot.get_image_responses([SpotCamIds.HAND_COLOR])
                 hand_image_response = image_responses[0]  # only expecting one image
                 spot.grasp_point_in_image(hand_image_response)
                 # Retract arm back to initial configuration
                 point, rpy = move_to_initial(spot)
-            elif pressed_key == 'r':
+            elif pressed_key == "r":
                 # Open gripper
                 spot.open_gripper()
             else:
