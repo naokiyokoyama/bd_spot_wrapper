@@ -348,14 +348,14 @@ class Spot:
 
         return cmd_id
 
-    def get_xy_yaw(self):
+    def get_xy_yaw(self, use_boot_origin=False):
         """
         Returns the relative x and y distance from start, as well as relative heading
         """
         robot_state_kin = self.robot_state_client.get_robot_state().kinematic_state
         robot_state = get_vision_tform_body(robot_state_kin.transforms_snapshot)
         yaw = math_helpers.quat_to_eulerZYX(robot_state.rotation)[0]
-        if self.global_T_local is None:
+        if self.global_T_local is None or use_boot_origin:
             return robot_state.x, robot_state.y, yaw
         x, y, w = self.global_T_local.dot(np.array([robot_state.x, robot_state.y, 1.0]))
         x, y = x / w, y / w
@@ -364,7 +364,7 @@ class Spot:
         return x, y, yaw
 
     def home_robot(self):
-        x, y, yaw = self.get_xy_yaw()
+        x, y, yaw = self.get_xy_yaw(use_boot_origin=True)
         # Create offset transformation matrix
         local_T_global = np.array(
             [
