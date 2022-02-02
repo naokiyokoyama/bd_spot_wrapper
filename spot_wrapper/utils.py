@@ -1,13 +1,14 @@
+import subprocess
+
 import cv2
 import numpy as np
-import subprocess
 
 
 def say(text):
     try:
         subprocess.Popen(("say " + text).split())
     except:
-        print(f'"{text}"')
+        print(f'Saying: "{text}"')
 
 
 def inflate_erode(mask, size=50):

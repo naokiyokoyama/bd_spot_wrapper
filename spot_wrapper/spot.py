@@ -9,7 +9,6 @@ import os
 import os.path as osp
 import time
 from collections import OrderedDict
-from enum import Enum
 
 import bosdyn.client
 import bosdyn.client.lease
