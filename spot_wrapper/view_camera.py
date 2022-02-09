@@ -63,8 +63,9 @@ def main(spot: Spot):
             if not args.no_display:
                 cv2.imshow(window_name, img)
                 cv2.waitKey(1)
-                time_buffer.append(time.time() - start_time)
-                print("Avg FPS:", 1 / np.mean(time_buffer))
+
+            time_buffer.append(time.time() - start_time)
+            print("Avg FPS:", 1 / np.mean(time_buffer))
     finally:
         if not args.no_display:
             cv2.destroyWindow(window_name)
