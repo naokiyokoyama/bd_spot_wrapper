@@ -32,7 +32,7 @@ from bosdyn.client.frame_helpers import (
     HAND_FRAME_NAME,
     get_vision_tform_body,
 )
-from bosdyn.client.image import ImageClient
+from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
@@ -218,13 +218,24 @@ class Spot:
     def block_until_arm_arrives(self, cmd_id, timeout_sec=5):
         block_until_arm_arrives(self.command_client, cmd_id, timeout_sec=timeout_sec)
 
-    def get_image_responses(self, sources):
+    def get_image_responses(self, sources, quality=None):
         """Retrieve images from Spot's cameras
 
         :param sources: list containing camera uuids
+        :param quality: either an int or a list specifying what quality each source
+            should return its image with
         :return: list containing bosdyn image response objects
         """
-        image_responses = self.image_client.get_image_from_sources(sources)
+        if quality is not None:
+            if isinstance(quality, int):
+                quality = [quality] * len(sources)
+            else:
+                assert len(quality) == len(sources)
+            sources = [build_image_request(src, q) for src, q in zip(sources, quality)]
+            image_responses = self.image_client.get_image(sources)
+        else:
+            image_responses = self.image_client.get_image_from_sources(sources)
+
         return image_responses
 
     def grasp_point_in_image(self, image_response, pixel_xy=None):

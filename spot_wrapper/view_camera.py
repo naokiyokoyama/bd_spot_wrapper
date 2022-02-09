@@ -21,9 +21,10 @@ DETECT_LARGEST_WHITE_OBJECT = False
 def main(spot: Spot):
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--no-display", action="store_true")
+    parser.add_argument("-q", "--quality", type=int)
     args = parser.parse_args()
     window_name = "spot camera viewer"
-    time_buffer = deque(maxlen=30)
+    time_buffer = deque(maxlen=10)
     sources = [
         SpotCamIds.FRONTRIGHT_DEPTH,
         SpotCamIds.FRONTLEFT_DEPTH,
@@ -35,7 +36,7 @@ def main(spot: Spot):
             start_time = time.time()
 
             # Get Spot camera image
-            image_responses = spot.get_image_responses(sources)
+            image_responses = spot.get_image_responses(sources, quality=args.quality)
             imgs = []
             for image_response, source in zip(image_responses, sources):
                 img = image_response_to_cv2(image_response, reorient=True)
