@@ -1,3 +1,4 @@
+import argparse
 import time
 from collections import deque
 
@@ -14,10 +15,13 @@ from spot_wrapper.utils import color_bbox
 
 MAX_HAND_DEPTH = 3.0
 MAX_HEAD_DEPTH = 10.0
-DETECT_LARGEST_WHITE_OBJECT = True
+DETECT_LARGEST_WHITE_OBJECT = False
 
 
 def main(spot: Spot):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--no-display", action="store_true")
+    args = parser.parse_args()
     window_name = "spot camera viewer"
     time_buffer = deque(maxlen=30)
     sources = [
@@ -56,12 +60,14 @@ def main(spot: Spot):
 
             img = np.hstack(imgs)
 
-            cv2.imshow(window_name, img)
-            cv2.waitKey(1)
-            time_buffer.append(time.time() - start_time)
-            print("Avg FPS:", 1 / np.mean(time_buffer))
+            if not args.no_display:
+                cv2.imshow(window_name, img)
+                cv2.waitKey(1)
+                time_buffer.append(time.time() - start_time)
+                print("Avg FPS:", 1 / np.mean(time_buffer))
     finally:
-        cv2.destroyWindow(window_name)
+        if not args.no_display:
+            cv2.destroyWindow(window_name)
 
 
 if __name__ == "__main__":
