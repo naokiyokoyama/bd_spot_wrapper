@@ -11,6 +11,18 @@ def say(text):
         print(f'Saying: "{text}"')
 
 
+def resize_to_tallest(imgs, hstack=False):
+    tallest = max([i.shape[0] for i in imgs])
+    for idx, i in enumerate(imgs):
+        height, width = i.shape[:2]
+        if height != tallest:
+            new_width = int(width * (tallest / height))
+            imgs[idx] = cv2.resize(i, (new_width, tallest))
+    if hstack:
+        return np.hstack(imgs)
+    return imgs
+
+
 def inflate_erode(mask, size=50):
     mask_copy = mask.copy()
     mask_copy = cv2.blur(mask_copy, (size, size))
