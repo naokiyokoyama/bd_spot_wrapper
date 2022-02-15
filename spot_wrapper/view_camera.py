@@ -11,7 +11,7 @@ from spot_wrapper.spot import (
     image_response_to_cv2,
     scale_depth_img,
 )
-from spot_wrapper.utils import color_bbox
+from spot_wrapper.utils import color_bbox, resize_to_tallest
 
 MAX_HAND_DEPTH = 3.0
 MAX_HEAD_DEPTH = 10.0
@@ -23,7 +23,7 @@ def main(spot: Spot):
     parser.add_argument("-d", "--no-display", action="store_true")
     parser.add_argument("-q", "--quality", type=int)
     args = parser.parse_args()
-    window_name = "spot camera viewer"
+    window_name = "Spot Camera Viewer"
     time_buffer = deque(maxlen=10)
     sources = [
         SpotCamIds.FRONTRIGHT_DEPTH,
@@ -52,14 +52,7 @@ def main(spot: Spot):
                 imgs.append(img)
 
             # Make sure all imgs are same height
-            tallest = max([i.shape[0] for i in imgs])
-            for idx, i in enumerate(imgs):
-                height, width = i.shape[:2]
-                if height != tallest:
-                    new_width = int(width * (tallest / height))
-                    imgs[idx] = cv2.resize(i, (new_width, tallest))
-
-            img = np.hstack(imgs)
+            img = resize_to_tallest(imgs, hstack=True)
 
             if not args.no_display:
                 cv2.imshow(window_name, img)
