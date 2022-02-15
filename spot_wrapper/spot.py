@@ -43,16 +43,22 @@ from bosdyn.client.robot_command import (
 from bosdyn.client.robot_state import RobotStateClient
 from google.protobuf import wrappers_pb2
 
+# Get Spot password and IP address
+env_err_msg = (
+    "\n{var_name} not found as an environment variable!\n"
+    "Please run:\n"
+    "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bashrc\nor for MacOS,\n"
+    "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bash_profile\n"
+    "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
+)
 try:
     SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
 except KeyError:
-    raise RuntimeError(
-        "\nSPOT_ADMIN_PW not found as an environment variable!\n"
-        "Please run:\n"
-        "echo 'export SPOT_ADMIN_PW=<YOUR_SPOT_ADMIN_PW>' >> ~/.bashrc\nor for MacOS,\n"
-        "echo 'export SPOT_ADMIN_PW=<YOUR_SPOT_ADMIN_PW>' >> ~/.bash_profile\n"
-        "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
-    )
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
+try:
+    SPOT_IP = os.environ["SPOT_IP"]
+except KeyError:
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
 
 ARM_6DOF_NAMES = [
     "arm0.sh0",
@@ -103,7 +109,7 @@ class Spot:
     def __init__(self, client_name_prefix):
         bosdyn.client.util.setup_logging()
         sdk = bosdyn.client.create_standard_sdk(client_name_prefix)
-        robot = sdk.create_robot("192.168.80.3")
+        robot = sdk.create_robot(SPOT_IP)
         robot.authenticate("admin", SPOT_ADMIN_PW)
         robot.time_sync.wait_for_sync()
         self.robot = robot
