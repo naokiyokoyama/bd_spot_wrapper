@@ -326,18 +326,32 @@ class Spot:
 
         return cmd_id
 
-    def get_arm_proprioception(self):
+    def get_robot_state(self):
+        return self.robot_state_client.get_robot_state()
+
+    def get_arm_proprioception(self, robot_state=None):
         """Return state of each of the 6 joints of the arm"""
-        agent_state = self.robot_state_client.get_robot_state()
+        if robot_state is None:
+            robot_state = self.robot_state_client.get_robot_state()
         arm_joint_states = OrderedDict(
             {
                 i.name[len("arm0.") :]: i
-                for i in agent_state.kinematic_state.joint_states
+                for i in robot_state.kinematic_state.joint_states
                 if i.name in ARM_6DOF_NAMES
             }
         )
 
         return arm_joint_states
+
+    def get_proprioception(self, robot_state=None):
+        """Return state of each of the 6 joints of the arm"""
+        if robot_state is None:
+            robot_state = self.robot_state_client.get_robot_state()
+        joint_states = OrderedDict(
+            {i.name: i for i in robot_state.kinematic_state.joint_states}
+        )
+
+        return joint_states
 
     def set_arm_joint_positions(
         self, positions, travel_time=1.0, max_vel=2.5, max_acc=15
@@ -365,16 +379,18 @@ class Spot:
 
         return cmd_id
 
-    def get_xy_yaw(self, use_boot_origin=False):
+    def get_xy_yaw(self, use_boot_origin=False, robot_state=None):
         """
         Returns the relative x and y distance from start, as well as relative heading
         """
-        robot_state_kin = self.robot_state_client.get_robot_state().kinematic_state
-        robot_state = get_vision_tform_body(robot_state_kin.transforms_snapshot)
-        yaw = math_helpers.quat_to_eulerZYX(robot_state.rotation)[0]
+        if robot_state is None:
+            robot_state = self.robot_state_client.get_robot_state()
+        robot_state_kin = robot_state.kinematic_state
+        robot_tform = get_vision_tform_body(robot_state_kin.transforms_snapshot)
+        yaw = math_helpers.quat_to_eulerZYX(robot_tform.rotation)[0]
         if self.global_T_local is None or use_boot_origin:
-            return robot_state.x, robot_state.y, yaw
-        x, y, w = self.global_T_local.dot(np.array([robot_state.x, robot_state.y, 1.0]))
+            return robot_tform.x, robot_tform.y, yaw
+        x, y, w = self.global_T_local.dot(np.array([robot_tform.x, robot_tform.y, 1.0]))
         x, y = x / w, y / w
         yaw = wrap_heading(yaw - self.robot_recenter_yaw)
 
