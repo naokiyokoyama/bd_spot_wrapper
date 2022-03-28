@@ -9,6 +9,7 @@ MOVE_INCREMENT = 0.02
 TILT_INCREMENT = 5.0
 BASE_ANGULAR_VEL = np.deg2rad(50)
 BASE_LIN_VEL = 0.5
+DOCK_ID = 520
 
 # Where the gripper goes to upon initialization
 INITIAL_POINT = np.array([0.75, 0.0, 0.35])
@@ -98,6 +99,8 @@ def main(spot: Spot):
             elif pressed_key == "r":
                 # Open gripper
                 spot.open_gripper()
+            elif pressed_key == "n":
+                spot.dock(DOCK_ID)
             else:
                 # Tele-operate either the gripper pose or the base
                 if control_arm:

@@ -27,6 +27,7 @@ from bosdyn.api import (
 )
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
+from bosdyn.client.docking import blocking_dock_robot
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
     HAND_FRAME_NAME,
@@ -138,6 +139,9 @@ class Spot:
         else:
             self.global_T_local = None
             self.robot_recenter_yaw = None
+
+        # Print the battery charge level of the robot
+        self.loginfo(f"Current battery charge: {self.get_battery_charge()}%")
 
     def get_lease(self, hijack=False):
         # Make sure a lease for this client isn't already active
@@ -329,6 +333,10 @@ class Spot:
     def get_robot_state(self):
         return self.robot_state_client.get_robot_state()
 
+    def get_battery_charge(self):
+        state = self.get_robot_state()
+        return state.power_state.locomotion_charge_percentage.value
+
     def get_arm_proprioception(self, robot_state=None):
         """Return state of each of the 6 joints of the arm"""
         if robot_state is None:
@@ -421,6 +429,9 @@ class Spot:
             child_frame
         ).parent_tform_child
         return kin_state.position, kin_state.rotation
+
+    def dock(self, dock_id):
+        blocking_dock_robot(self.robot, dock_id)
 
 
 class SpotLease:
