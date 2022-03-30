@@ -12,8 +12,8 @@ BASE_LIN_VEL = 0.5
 DOCK_ID = 520
 
 # Where the gripper goes to upon initialization
-INITIAL_POINT = np.array([0.75, 0.0, 0.35])
-INITIAL_RPY = np.deg2rad([0.0, 60.0, 0.0])
+INITIAL_POINT = np.array([0.5, 0.0, 0.35])
+INITIAL_RPY = np.deg2rad([0.0, 45.0, 0.0])
 KEY2GRIPPERMOVEMENT = {
     "w": np.array([0.0, 0.0, MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move up
     "s": np.array([0.0, 0.0, -MOVE_INCREMENT, 0.0, 0.0, 0.0]),  # move down
@@ -66,7 +66,7 @@ def main(spot: Spot):
 
     # Move arm to initial configuration
     point, rpy = move_to_initial(spot)
-    control_arm = True
+    control_arm = False
 
     # Start in-terminal GUI
     stdscr = curses.initscr()
@@ -100,7 +100,10 @@ def main(spot: Spot):
                 # Open gripper
                 spot.open_gripper()
             elif pressed_key == "n":
-                spot.dock(DOCK_ID)
+                try:
+                    spot.dock(DOCK_ID)
+                except:
+                    print("Dock was not found!")
             else:
                 # Tele-operate either the gripper pose or the base
                 if control_arm:
@@ -109,6 +112,7 @@ def main(spot: Spot):
                         point_rpy += KEY2GRIPPERMOVEMENT[pressed_key]
                         point, rpy = point_rpy[:3], point_rpy[3:]
                         cmd_id = spot.move_gripper_to_point(point, rpy)
+                        print("Gripper destination: ", point, rpy)
                         spot.block_until_arm_arrives(cmd_id, timeout_sec=0.5)
                 else:
                     if pressed_key in KEY2BASEMOVEMENT:
