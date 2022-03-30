@@ -394,15 +394,18 @@ class Spot:
         if robot_state is None:
             robot_state = self.robot_state_client.get_robot_state()
         robot_state_kin = robot_state.kinematic_state
-        robot_tform = get_vision_tform_body(robot_state_kin.transforms_snapshot)
+        self.body = get_vision_tform_body(robot_state_kin.transforms_snapshot)
+        robot_tform = self.body
         yaw = math_helpers.quat_to_eulerZYX(robot_tform.rotation)[0]
         if self.global_T_local is None or use_boot_origin:
             return robot_tform.x, robot_tform.y, yaw
-        x, y, w = self.global_T_local.dot(np.array([robot_tform.x, robot_tform.y, 1.0]))
-        x, y = x / w, y / w
-        yaw = wrap_heading(yaw - self.robot_recenter_yaw)
+        return self.xy_yaw_global_to_home(robot_tform.x, robot_tform.y, yaw)
 
-        return x, y, yaw
+    def xy_yaw_global_to_home(self, x, y, yaw):
+        x, y, w = self.global_T_local.dot(np.array([x, y, 1.0]))
+        x, y = x / w, y / w
+
+        return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
 
     def home_robot(self):
         x, y, yaw = self.get_xy_yaw(use_boot_origin=True)
@@ -430,8 +433,10 @@ class Spot:
         ).parent_tform_child
         return kin_state.position, kin_state.rotation
 
-    def dock(self, dock_id):
+    def dock(self, dock_id, home_robot=False):
         blocking_dock_robot(self.robot, dock_id)
+        if home_robot:
+            self.home_robot()
 
 
 class SpotLease:
