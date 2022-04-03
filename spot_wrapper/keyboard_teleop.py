@@ -8,8 +8,9 @@ from spot_wrapper.spot import Spot, SpotCamIds
 MOVE_INCREMENT = 0.02
 TILT_INCREMENT = 5.0
 BASE_ANGULAR_VEL = np.deg2rad(50)
-BASE_LIN_VEL = 0.5
+BASE_LIN_VEL = 0.75
 DOCK_ID = 520
+UPDATE_PERIOD = 0.2
 
 # Where the gripper goes to upon initialization
 INITIAL_POINT = np.array([0.5, 0.0, 0.35])
@@ -48,8 +49,17 @@ def move_to_initial(spot):
     rpy = INITIAL_RPY
     cmd_id = spot.move_gripper_to_point(point, rpy)
     spot.block_until_arm_arrives(cmd_id, timeout_sec=0.8)
+    cement_arm_joints(spot)
 
     return point, rpy
+
+
+def cement_arm_joints(spot):
+    arm_proprioception = spot.get_arm_proprioception()
+    current_positions = np.array(
+        [v.position.value for v in arm_proprioception.values()]
+    )
+    spot.set_arm_joint_positions(positions=current_positions, travel_time=UPDATE_PERIOD)
 
 
 def raise_error(sig, frame):
@@ -74,12 +84,19 @@ def main(spot: Spot):
     curses.noecho()
     signal.signal(signal.SIGINT, raise_error)
     stdscr.addstr(INSTRUCTIONS)
+    last_execution = time.time()
     try:
         while True:
             point_rpy = np.concatenate([point, rpy])
             pressed_key = stdscr.getch()
-            if pressed_key != -1:
-                pressed_key = chr(pressed_key)
+
+            key_not_applicable = False
+
+            # Don't update if no key was pressed or we updated too recently
+            if pressed_key == -1 or time.time() - last_execution < UPDATE_PERIOD:
+                continue
+
+            pressed_key = chr(pressed_key)
 
             if pressed_key == "z":
                 # Quit
@@ -87,6 +104,8 @@ def main(spot: Spot):
             elif pressed_key == "t":
                 # Toggle between controlling arm or base
                 control_arm = not control_arm
+                if not control_arm:
+                    cement_arm_joints(spot)
                 spot.loginfo(f"control_arm: {control_arm}")
                 time.sleep(0.2)  # Wait before we starting listening again
             elif pressed_key == "g":
@@ -104,6 +123,8 @@ def main(spot: Spot):
                     spot.dock(DOCK_ID)
                 except:
                     print("Dock was not found!")
+            elif pressed_key == "i":
+                point, rpy = move_to_initial(spot)
             else:
                 # Tele-operate either the gripper pose or the base
                 if control_arm:
@@ -113,14 +134,24 @@ def main(spot: Spot):
                         point, rpy = point_rpy[:3], point_rpy[3:]
                         cmd_id = spot.move_gripper_to_point(point, rpy)
                         print("Gripper destination: ", point, rpy)
-                        spot.block_until_arm_arrives(cmd_id, timeout_sec=0.5)
-                else:
-                    if pressed_key in KEY2BASEMOVEMENT:
-                        # Move base
-                        x_vel, y_vel, ang_vel = KEY2BASEMOVEMENT[pressed_key]
-                        spot.set_base_velocity(
-                            x_vel=x_vel, y_vel=y_vel, ang_vel=ang_vel, vel_time=0.5
+                        spot.block_until_arm_arrives(
+                            cmd_id, timeout_sec=UPDATE_PERIOD * 0.5
                         )
+                elif pressed_key in KEY2BASEMOVEMENT:
+                    # Move base
+                    x_vel, y_vel, ang_vel = KEY2BASEMOVEMENT[pressed_key]
+                    spot.set_base_velocity(
+                        x_vel=x_vel,
+                        y_vel=y_vel,
+                        ang_vel=ang_vel,
+                        vel_time=UPDATE_PERIOD * 2,
+                    )
+                else:
+                    key_not_applicable = True
+
+            if not key_not_applicable:
+                last_execution = time.time()
+
     finally:
         spot.power_off()
         curses.echo()
