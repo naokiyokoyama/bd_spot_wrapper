@@ -299,13 +299,13 @@ class Spot:
 
             time.sleep(0.25)
 
-    def grasp_center_of_hand_depth(self):
+    def grasp_hand_depth(self, pixel_xy=None):
         # Grab whatever object is at the center of hand depth camera image
         image_responses = self.get_image_responses(
             [SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
         )
         hand_image_response = image_responses[0]  # only expecting one image
-        self.grasp_point_in_image(hand_image_response)
+        self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
 
     def set_base_velocity(self, x_vel, y_vel, ang_vel, vel_time, params=None):
         body_tform_goal = math_helpers.SE2Velocity(x=x_vel, y=y_vel, angular=ang_vel)
