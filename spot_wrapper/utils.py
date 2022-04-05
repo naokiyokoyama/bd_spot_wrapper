@@ -6,9 +6,13 @@ import numpy as np
 
 def say(text):
     try:
-        subprocess.Popen(("say " + text).split())
+        text = text.replace("_", " ")
+        text = f'"{text}"'
+        cmd = f"/usr/bin/festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText {text})'"
+        subprocess.Popen(cmd, shell=True)
     except:
-        print(f'Saying: "{text}"')
+        pass
+    print(f'Saying: "{text}"')
 
 
 def resize_to_tallest(imgs, hstack=False):
