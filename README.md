@@ -4,13 +4,18 @@
 
 Create the conda env:
 
-```
+```bash
 conda create -n spot_env -y python=3.6
 conda activate spot_env
 ```
 Install requirements
-```
+```bash
 pip install -r requirements.txt
+```
+Install this package
+```bash
+# Make sure you are in the root of this repo
+pip install -e .
 ```
 
 ## Quickstart
