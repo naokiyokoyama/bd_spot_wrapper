@@ -18,6 +18,7 @@ import numpy as np
 from bosdyn import geometry
 from bosdyn.api import (
     arm_command_pb2,
+    basic_command_pb2,
     geometry_pb2,
     image_pb2,
     manipulation_api_pb2,
@@ -25,12 +26,14 @@ from bosdyn.api import (
     synchronized_command_pb2,
     trajectory_pb2,
 )
+from bosdyn.api.geometry_pb2 import SE2Velocity, SE2VelocityLimit, Vec2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.docking import blocking_dock_robot
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
     HAND_FRAME_NAME,
+    VISION_FRAME_NAME,
     get_vision_tform_body,
 )
 from bosdyn.client.image import ImageClient, build_image_request
@@ -98,6 +101,7 @@ class SpotCamIds:
     RIGHT_FISHEYE = "right_fisheye_image"
 
 
+# CamIds that need to be rotated by 270 degrees in order to appear upright
 SHOULD_ROTATE = [
     SpotCamIds.FRONTLEFT_DEPTH,
     SpotCamIds.FRONTRIGHT_DEPTH,
@@ -133,11 +137,11 @@ class Spot:
         if osp.isfile(HOME_TXT):
             with open(HOME_TXT) as f:
                 data = f.read()
-            self.global_T_local = np.array([float(d) for d in data.split(", ")[:9]])
-            self.global_T_local = self.global_T_local.reshape([3, 3])
+            self.global_T_home = np.array([float(d) for d in data.split(", ")[:9]])
+            self.global_T_home = self.global_T_home.reshape([3, 3])
             self.robot_recenter_yaw = float(data.split(", ")[-1])
         else:
-            self.global_T_local = None
+            self.global_T_home = None
             self.robot_recenter_yaw = None
 
         # Print the battery charge level of the robot
@@ -148,6 +152,9 @@ class Spot:
         assert self.spot_lease is None
         self.spot_lease = SpotLease(self, hijack=hijack)
         return self.spot_lease
+
+    def get_cmd_feedback(self, cmd_id):
+        return self.command_client.robot_command_feedback(cmd_id)
 
     def is_estopped(self):
         return self.robot.is_estopped()
@@ -307,17 +314,18 @@ class Spot:
         hand_image_response = image_responses[0]  # only expecting one image
         self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
 
-    def set_base_velocity(self, x_vel, y_vel, ang_vel, vel_time, params=None):
+    def set_base_velocity(
+        self, x_vel, y_vel, ang_vel, vel_time, disable_obstacle_avoidance=False
+    ):
         body_tform_goal = math_helpers.SE2Velocity(x=x_vel, y=y_vel, angular=ang_vel)
-        if params is None:
-            params = spot_command_pb2.MobilityParams(
-                obstacle_params=spot_command_pb2.ObstacleParams(
-                    disable_vision_body_obstacle_avoidance=False,
-                    disable_vision_foot_obstacle_avoidance=False,
-                    disable_vision_foot_constraint_avoidance=False,
-                    obstacle_avoidance_padding=0.05,  # in meters
-                )
+        params = spot_command_pb2.MobilityParams(
+            obstacle_params=spot_command_pb2.ObstacleParams(
+                disable_vision_body_obstacle_avoidance=disable_obstacle_avoidance,
+                disable_vision_foot_obstacle_avoidance=False,
+                disable_vision_foot_constraint_avoidance=False,
+                obstacle_avoidance_padding=0.05,  # in meters
             )
+        )
         robot_cmd = RobotCommandBuilder.synchro_velocity_command(
             v_x=body_tform_goal.linear_velocity_x,
             v_y=body_tform_goal.linear_velocity_y,
@@ -330,12 +338,88 @@ class Spot:
 
         return cmd_id
 
+    def set_base_position(
+        self,
+        x_pos,
+        y_pos,
+        yaw,
+        end_time,
+        relative=False,
+        max_fwd_vel=2,
+        max_hor_vel=2,
+        max_ang_vel=np.pi / 2,
+        disable_obstacle_avoidance=False,
+        blocking=False,
+    ):
+        vel_limit = SE2VelocityLimit(
+            max_vel=SE2Velocity(
+                linear=Vec2(x=max_fwd_vel, y=max_hor_vel), angular=max_ang_vel
+            ),
+            min_vel=SE2Velocity(
+                linear=Vec2(x=-max_fwd_vel, y=-max_hor_vel), angular=-max_ang_vel
+            ),
+        )
+        params = spot_command_pb2.MobilityParams(
+            vel_limit=vel_limit,
+            obstacle_params=spot_command_pb2.ObstacleParams(
+                disable_vision_body_obstacle_avoidance=disable_obstacle_avoidance,
+                disable_vision_foot_obstacle_avoidance=False,
+                disable_vision_foot_constraint_avoidance=False,
+                obstacle_avoidance_padding=0.05,  # in meters
+            ),
+        )
+        curr_x, curr_y, curr_yaw = self.get_xy_yaw(use_boot_origin=True)
+        coors = np.array([x_pos, y_pos, 1.0])
+        if relative:
+            local_T_global = self._get_local_T_global(curr_x, curr_y, curr_yaw)
+            x, y, w = local_T_global.dot(coors)
+            global_x_pos, global_y_pos = x / w, y / w
+            global_yaw = wrap_heading(curr_yaw + yaw)
+        else:
+            global_x_pos, global_y_pos, global_yaw = self.xy_yaw_home_to_global(
+                x_pos, y_pos, yaw
+            )
+        robot_cmd = RobotCommandBuilder.synchro_se2_trajectory_point_command(
+            goal_x=global_x_pos,
+            goal_y=global_y_pos,
+            goal_heading=global_yaw,
+            frame_name=VISION_FRAME_NAME,
+            params=params,
+        )
+        cmd_id = self.command_client.robot_command(
+            robot_cmd, end_time_secs=time.time() + end_time
+        )
+
+        if blocking:
+            cmd_status = None
+            while cmd_status != 1:
+                time.sleep(0.1)
+                feedback_resp = self.get_cmd_feedback(cmd_id)
+                cmd_status = (
+                    feedback_resp.feedback.synchronized_feedback
+                ).mobility_command_feedback.se2_trajectory_feedback.status
+            return None
+
+        return cmd_id
+
     def get_robot_state(self):
         return self.robot_state_client.get_robot_state()
 
     def get_battery_charge(self):
         state = self.get_robot_state()
         return state.power_state.locomotion_charge_percentage.value
+
+    def roll_over(self, roll_over_left=True):
+        if roll_over_left:
+            dir_hint = basic_command_pb2.BatteryChangePoseCommand.Request.HINT_LEFT
+        else:
+            dir_hint = basic_command_pb2.BatteryChangePoseCommand.Request.HINT_RIGHT
+        cmd = RobotCommandBuilder.battery_change_pose_command(dir_hint=dir_hint)
+        self.command_client.robot_command(cmd)
+
+    def sit(self):
+        cmd = RobotCommandBuilder.synchro_sit_command()
+        self.command_client.robot_command(cmd)
 
     def get_arm_proprioception(self, robot_state=None):
         """Return state of each of the 6 joints of the arm"""
@@ -397,18 +481,26 @@ class Spot:
         self.body = get_vision_tform_body(robot_state_kin.transforms_snapshot)
         robot_tform = self.body
         yaw = math_helpers.quat_to_eulerZYX(robot_tform.rotation)[0]
-        if self.global_T_local is None or use_boot_origin:
+        if self.global_T_home is None or use_boot_origin:
             return robot_tform.x, robot_tform.y, yaw
         return self.xy_yaw_global_to_home(robot_tform.x, robot_tform.y, yaw)
 
     def xy_yaw_global_to_home(self, x, y, yaw):
-        x, y, w = self.global_T_local.dot(np.array([x, y, 1.0]))
+        x, y, w = self.global_T_home.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
 
         return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
 
-    def home_robot(self):
-        x, y, yaw = self.get_xy_yaw(use_boot_origin=True)
+    def xy_yaw_home_to_global(self, x, y, yaw):
+        local_T_global = np.linalg.inv(self.global_T_home)
+        x, y, w = local_T_global.dot(np.array([x, y, 1.0]))
+        x, y = x / w, y / w
+
+        return x, y, wrap_heading(self.robot_recenter_yaw - yaw)
+
+    def _get_local_T_global(self, x=None, y=None, yaw=None):
+        if x is None:
+            x, y, yaw = self.get_xy_yaw(use_boot_origin=True)
         # Create offset transformation matrix
         local_T_global = np.array(
             [
@@ -417,10 +509,15 @@ class Spot:
                 [0.0, 0.0, 1.0],
             ]
         )
-        self.global_T_local = np.linalg.inv(local_T_global)
+        return local_T_global
+
+    def home_robot(self):
+        x, y, yaw = self.get_xy_yaw(use_boot_origin=True)
+        local_T_global = self._get_local_T_global()
+        self.global_T_home = np.linalg.inv(local_T_global)
         self.robot_recenter_yaw = yaw
 
-        as_string = list(self.global_T_local.flatten()) + [yaw]
+        as_string = list(self.global_T_home.flatten()) + [yaw]
         as_string = f"{as_string}"[1:-1]  # [1:-1] removes brackets
         with open(HOME_TXT, "w") as f:
             f.write(as_string)
