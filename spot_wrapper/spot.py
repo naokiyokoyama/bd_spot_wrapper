@@ -159,9 +159,7 @@ class Spot:
     def is_estopped(self):
         return self.robot.is_estopped()
 
-    def power_on(
-        self, timeout_sec=20, service_name=RobotCommandClient.default_service_name
-    ):
+    def power_on(self, timeout_sec=20):
         self.robot.power_on(timeout_sec=timeout_sec)
         assert self.robot.is_powered_on(), "Robot power on failed."
         self.loginfo("Robot powered on.")
@@ -255,7 +253,7 @@ class Spot:
 
         return image_responses
 
-    def grasp_point_in_image(self, image_response, pixel_xy=None):
+    def grasp_point_in_image(self, image_response, pixel_xy=None, timeout=10):
         # If pixel location not provided, select the center pixel
         if pixel_xy is None:
             height = image_response.shot.image.rows
@@ -281,7 +279,8 @@ class Spot:
         )
 
         # Get feedback from the robot (WILL BLOCK TILL COMPLETION)
-        while True:
+        start_time = time.time()
+        while time.time() < start_time + timeout:
             feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
                 manipulation_cmd_id=cmd_response.manipulation_cmd_id
             )
@@ -302,9 +301,10 @@ class Spot:
                 manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED,
                 manipulation_api_pb2.MANIP_STATE_GRASP_FAILED,
             ]:
-                break
+                return
 
             time.sleep(0.25)
+        raise RuntimeError("Grasping timed out!")
 
     def grasp_hand_depth(self, pixel_xy=None):
         # Grab whatever object is at the center of hand depth camera image
