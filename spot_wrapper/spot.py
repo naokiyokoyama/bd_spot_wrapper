@@ -506,7 +506,9 @@ class Spot:
             arm_positions, travel_time=travel_time, return_cmd=True
         )
         synchro_command = RobotCommandBuilder.build_synchro_command(base_cmd, arm_cmd)
-        cmd_id = self.command_client.robot_command(synchro_command)
+        cmd_id = self.command_client.robot_command(
+            synchro_command, end_time_secs=time.time() + travel_time
+        )
         return cmd_id
 
     def get_xy_yaw(self, use_boot_origin=False, robot_state=None):
