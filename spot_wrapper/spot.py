@@ -315,7 +315,13 @@ class Spot:
         self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
 
     def set_base_velocity(
-        self, x_vel, y_vel, ang_vel, vel_time, disable_obstacle_avoidance=False
+        self,
+        x_vel,
+        y_vel,
+        ang_vel,
+        vel_time,
+        disable_obstacle_avoidance=False,
+        return_cmd=False,
     ):
         body_tform_goal = math_helpers.SE2Velocity(x=x_vel, y=y_vel, angular=ang_vel)
         params = spot_command_pb2.MobilityParams(
@@ -326,14 +332,18 @@ class Spot:
                 obstacle_avoidance_padding=0.05,  # in meters
             )
         )
-        robot_cmd = RobotCommandBuilder.synchro_velocity_command(
+        command = RobotCommandBuilder.synchro_velocity_command(
             v_x=body_tform_goal.linear_velocity_x,
             v_y=body_tform_goal.linear_velocity_y,
             v_rot=body_tform_goal.angular_velocity,
             params=params,
         )
+
+        if return_cmd:
+            return command
+
         cmd_id = self.command_client.robot_command(
-            robot_cmd, end_time_secs=time.time() + vel_time
+            command, end_time_secs=time.time() + vel_time
         )
 
         return cmd_id
@@ -446,7 +456,7 @@ class Spot:
         return joint_states
 
     def set_arm_joint_positions(
-        self, positions, travel_time=1.0, max_vel=2.5, max_acc=15
+        self, positions, travel_time=1.0, max_vel=2.5, max_acc=15, return_cmd=False
     ):
         """
         Takes in 6 joint targets and moves each arm joint to the corresponding target.
@@ -467,8 +477,36 @@ class Spot:
             maximum_acceleration=wrappers_pb2.DoubleValue(value=max_acc),
         )
         command = make_robot_command(arm_joint_traj)
+
+        if return_cmd:
+            return command
+
         cmd_id = self.command_client.robot_command(command)
 
+        return cmd_id
+
+    def set_base_vel_and_arm_pos(
+        self,
+        x_vel,
+        y_vel,
+        ang_vel,
+        arm_positions,
+        travel_time,
+        disable_obstacle_avoidance=False,
+    ):
+        base_cmd = self.set_base_velocity(
+            x_vel,
+            y_vel,
+            ang_vel,
+            vel_time=travel_time,
+            disable_obstacle_avoidance=disable_obstacle_avoidance,
+            return_cmd=True,
+        )
+        arm_cmd = self.set_arm_joint_positions(
+            arm_positions, travel_time=travel_time, return_cmd=True
+        )
+        synchro_command = RobotCommandBuilder.build_synchro_command(base_cmd, arm_cmd)
+        cmd_id = self.command_client.robot_command(synchro_command)
         return cmd_id
 
     def get_xy_yaw(self, use_boot_origin=False, robot_state=None):
