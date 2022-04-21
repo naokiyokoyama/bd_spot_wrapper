@@ -307,9 +307,9 @@ class Spot:
         raise RuntimeError("Grasping timed out!")
 
     def grasp_hand_depth(self, pixel_xy=None):
-        # Grab whatever object is at the center of hand depth camera image
         image_responses = self.get_image_responses(
-            [SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
+            # [SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
+            [SpotCamIds.HAND_COLOR]
         )
         hand_image_response = image_responses[0]  # only expecting one image
         self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)

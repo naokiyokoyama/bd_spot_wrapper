@@ -22,7 +22,6 @@ orig_to_alias = {
 
 print("Generating executables...")
 for orig, alias in orig_to_alias.items():
-    orig_path = osp.join(base_dir, orig + ".py")
     exe_path = osp.join(bin_dir, alias)
     data = f"#!/usr/bin/env bash \n{sys.executable} -m spot_wrapper.{orig}\n"
     with open(exe_path, "w") as f:
