@@ -42,6 +42,7 @@ from bosdyn.client.robot_command import (
     RobotCommandBuilder,
     RobotCommandClient,
     block_until_arm_arrives,
+    blocking_selfright,
     blocking_stand,
 )
 from bosdyn.client.robot_state import RobotStateClient
@@ -175,6 +176,11 @@ class Spot:
         blocking_stand(self.command_client, timeout_sec=timeout_sec)
         self.loginfo("Robot standing.")
 
+    def blocking_selfright(self, timeout_sec=20):
+        self.loginfo("Commanding robot to self-right (blocking)...")
+        blocking_selfright(self.command_client, timeout_sec=timeout_sec)
+        self.loginfo("Robot has self-righted.")
+
     def loginfo(self, *args, **kwargs):
         self.robot.logger.info(*args, **kwargs)
 
@@ -253,7 +259,9 @@ class Spot:
 
         return image_responses
 
-    def grasp_point_in_image(self, image_response, pixel_xy=None, timeout=10):
+    def grasp_point_in_image(
+        self, image_response, pixel_xy=None, timeout=10, data_edge_timeout=2
+    ):
         # If pixel location not provided, select the center pixel
         if pixel_xy is None:
             height = image_response.shot.image.rows
@@ -280,6 +288,7 @@ class Spot:
 
         # Get feedback from the robot (WILL BLOCK TILL COMPLETION)
         start_time = time.time()
+        success = False
         while time.time() < start_time + timeout:
             feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
                 manipulation_cmd_id=cmd_response.manipulation_cmd_id
@@ -297,14 +306,24 @@ class Spot:
                 ),
             )
 
-            if response.current_state in [
-                manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED,
-                manipulation_api_pb2.MANIP_STATE_GRASP_FAILED,
-            ]:
-                return
+            if (
+                response.current_state
+                == manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_WAITING_DATA_AT_EDGE
+            ) and time.time() > start_time + data_edge_timeout:
+                break
+            elif (
+                response.current_state
+                == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED
+            ):
+                success = True
+                break
+            elif (
+                response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
+            ):
+                break
 
             time.sleep(0.25)
-        raise RuntimeError("Grasping timed out!")
+        return success
 
     def grasp_hand_depth(self, pixel_xy=None):
         image_responses = self.get_image_responses(
