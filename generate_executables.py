@@ -13,6 +13,7 @@ orig_to_alias = {
     "keyboard_teleop": "spot_keyboard_teleop",
     "monitor_nav_pose": "spot_monitor_nav_pose",
     "roll_over": "spot_roll_over",
+    "selfright": "spot_selfright",
     "sit": "spot_sit",
     "stand": "spot_stand",
     "view_arm_proprioception": "spot_view_arm_proprioception",
