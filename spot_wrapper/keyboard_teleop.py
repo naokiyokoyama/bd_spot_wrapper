@@ -1,4 +1,5 @@
 import curses
+import os
 import signal
 import time
 
@@ -9,7 +10,7 @@ MOVE_INCREMENT = 0.02
 TILT_INCREMENT = 5.0
 BASE_ANGULAR_VEL = np.deg2rad(50)
 BASE_LIN_VEL = 0.75
-DOCK_ID = 520
+DOCK_ID = int(os.environ.get("SPOT_DOCK_ID", 520))
 UPDATE_PERIOD = 0.2
 
 # Where the gripper goes to upon initialization
