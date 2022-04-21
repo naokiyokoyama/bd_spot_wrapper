@@ -331,7 +331,7 @@ class Spot:
             [SpotCamIds.HAND_COLOR]
         )
         hand_image_response = image_responses[0]  # only expecting one image
-        self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
+        return self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
 
     def set_base_velocity(
         self,
