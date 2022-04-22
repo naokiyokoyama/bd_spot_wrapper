@@ -24,7 +24,7 @@ orig_to_alias = {
 print("Generating executables...")
 for orig, alias in orig_to_alias.items():
     exe_path = osp.join(bin_dir, alias)
-    data = f"#!/usr/bin/env bash \n{sys.executable} -m spot_wrapper.{orig}\n"
+    data = f"#!/usr/bin/env bash \n{sys.executable} -m spot_wrapper.{orig} $@\n"
     with open(exe_path, "w") as f:
         f.write(data)
     os.chmod(exe_path, 33277)
