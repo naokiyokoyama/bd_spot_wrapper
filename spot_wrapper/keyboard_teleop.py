@@ -122,6 +122,7 @@ def main(spot: Spot):
             elif pressed_key == "n":
                 try:
                     spot.dock(DOCK_ID)
+                    spot.home_robot()
                 except:
                     print("Dock was not found!")
             elif pressed_key == "i":
