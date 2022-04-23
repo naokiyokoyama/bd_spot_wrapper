@@ -260,7 +260,13 @@ class Spot:
         return image_responses
 
     def grasp_point_in_image(
-        self, image_response, pixel_xy=None, timeout=10, data_edge_timeout=2
+        self,
+        image_response,
+        pixel_xy=None,
+        timeout=10,
+        data_edge_timeout=2,
+        top_down_grasp=False,
+        horizontal_grasp=False,
     ):
         # If pixel location not provided, select the center pixel
         if pixel_xy is None:
@@ -276,6 +282,41 @@ class Spot:
             camera_model=image_response.source.pinhole,
             walk_gaze_mode=3,  # PICK_NO_AUTO_WALK_OR_GAZE
         )
+        if top_down_grasp or horizontal_grasp:
+            if top_down_grasp:
+                # Add a constraint that requests that the x-axis of the gripper is
+                # pointing in the negative-z direction in the vision frame.
+
+                # The axis on the gripper is the x-axis.
+                axis_on_gripper_ewrt_gripper = geometry_pb2.Vec3(x=1, y=0, z=0)
+
+                # The axis in the vision frame is the negative z-axis
+                axis_to_align_with_ewrt_vo = geometry_pb2.Vec3(x=0, y=0, z=-1)
+
+            else:
+                # Add a constraint that requests that the y-axis of the gripper is
+                # pointing in the positive-z direction in the vision frame. That means
+                # that the gripper is constrained to be rolled 90 degrees and pointed
+                # at the horizon.
+
+                # The axis on the gripper is the y-axis.
+                axis_on_gripper_ewrt_gripper = geometry_pb2.Vec3(x=0, y=1, z=0)
+
+                # The axis in the vision frame is the positive z-axis
+                axis_to_align_with_ewrt_vo = geometry_pb2.Vec3(x=0, y=0, z=1)
+
+            # Add the vector constraint to our proto.
+            constraint = grasp.grasp_params.allowable_orientation.add()
+            constraint.vector_alignment_with_tolerance.axis_on_gripper_ewrt_gripper.CopyFrom(
+                axis_on_gripper_ewrt_gripper
+            )
+            constraint.vector_alignment_with_tolerance.axis_to_align_with_ewrt_frame.CopyFrom(
+                axis_to_align_with_ewrt_vo
+            )
+
+            # Take anything within about 10 degrees for top-down or horizontal grasps.
+            # Take anything within about 10 degrees for top-down or horizontal grasps.
+            constraint.vector_alignment_with_tolerance.threshold_radians = 0.17
 
         # Ask the robot to pick up the object
         grasp_request = manipulation_api_pb2.ManipulationApiRequest(
@@ -325,13 +366,13 @@ class Spot:
             time.sleep(0.25)
         return success
 
-    def grasp_hand_depth(self, pixel_xy=None):
+    def grasp_hand_depth(self, *args, **kwargs):
         image_responses = self.get_image_responses(
             # [SpotCamIds.HAND_DEPTH_IN_HAND_COLOR_FRAME]
             [SpotCamIds.HAND_COLOR]
         )
         hand_image_response = image_responses[0]  # only expecting one image
-        return self.grasp_point_in_image(hand_image_response, pixel_xy=pixel_xy)
+        return self.grasp_point_in_image(hand_image_response, *args, **kwargs)
 
     def set_base_velocity(
         self,
