@@ -49,7 +49,7 @@ def move_to_initial(spot):
     point = INITIAL_POINT
     rpy = INITIAL_RPY
     cmd_id = spot.move_gripper_to_point(point, rpy)
-    spot.block_until_arm_arrives(cmd_id, timeout_sec=0.8)
+    spot.block_until_arm_arrives(cmd_id, timeout_sec=1.5)
     cement_arm_joints(spot)
 
     return point, rpy
