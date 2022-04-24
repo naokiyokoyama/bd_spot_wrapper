@@ -357,9 +357,10 @@ class Spot:
             ):
                 success = True
                 break
-            elif (
-                response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
-            ):
+            elif response.current_state in [
+                manipulation_api_pb2.MANIP_STATE_GRASP_FAILED,
+                manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_NO_SOLUTION,
+            ]:
                 break
 
             time.sleep(0.25)
