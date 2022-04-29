@@ -596,7 +596,7 @@ class Spot:
         x, y, w = local_T_global.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
 
-        return x, y, wrap_heading(self.robot_recenter_yaw - yaw)
+        return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
 
     def _get_local_T_global(self, x=None, y=None, yaw=None):
         if x is None:
