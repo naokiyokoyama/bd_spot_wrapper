@@ -305,6 +305,7 @@ class Spot:
                 # The axis in the vision frame is the positive z-axis
                 axis_to_align_with_ewrt_vo = geometry_pb2.Vec3(x=0, y=0, z=1)
 
+            grasp.grasp_params.grasp_params_frame_name = VISION_FRAME_NAME
             # Add the vector constraint to our proto.
             constraint = grasp.grasp_params.allowable_orientation.add()
             constraint.vector_alignment_with_tolerance.axis_on_gripper_ewrt_gripper.CopyFrom(
@@ -387,9 +388,9 @@ class Spot:
         params = spot_command_pb2.MobilityParams(
             obstacle_params=spot_command_pb2.ObstacleParams(
                 disable_vision_body_obstacle_avoidance=disable_obstacle_avoidance,
-                disable_vision_foot_obstacle_avoidance=False,
-                disable_vision_foot_constraint_avoidance=False,
-                obstacle_avoidance_padding=0.05,  # in meters
+                disable_vision_foot_obstacle_avoidance=disable_obstacle_avoidance,
+                disable_vision_foot_constraint_avoidance=disable_obstacle_avoidance,
+                obstacle_avoidance_padding=0.001,  # in meters
             )
         )
         command = RobotCommandBuilder.synchro_velocity_command(
