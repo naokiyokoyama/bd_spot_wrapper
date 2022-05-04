@@ -176,6 +176,11 @@ class Spot:
         blocking_stand(self.command_client, timeout_sec=timeout_sec)
         self.loginfo("Robot standing.")
 
+    def stand(self, timeout_sec=10):
+        stand_command = RobotCommandBuilder.synchro_stand_command()
+        cmd_id = self.command_client.robot_command(stand_command, timeout=timeout_sec)
+        return cmd_id
+
     def blocking_selfright(self, timeout_sec=20):
         self.loginfo("Commanding robot to self-right (blocking)...")
         blocking_selfright(self.command_client, timeout_sec=timeout_sec)
@@ -390,7 +395,7 @@ class Spot:
                 disable_vision_body_obstacle_avoidance=disable_obstacle_avoidance,
                 disable_vision_foot_obstacle_avoidance=False,
                 disable_vision_foot_constraint_avoidance=False,
-                obstacle_avoidance_padding=0.001,  # in meters
+                obstacle_avoidance_padding=0.05,  # in meters
             )
         )
         command = RobotCommandBuilder.synchro_velocity_command(
