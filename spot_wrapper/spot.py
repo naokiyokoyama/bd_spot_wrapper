@@ -29,7 +29,7 @@ from bosdyn.api import (
 from bosdyn.api.geometry_pb2 import SE2Velocity, SE2VelocityLimit, Vec2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
-from bosdyn.client.docking import blocking_dock_robot
+from bosdyn.client.docking import blocking_dock_robot, blocking_undock
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
     HAND_FRAME_NAME,
@@ -640,6 +640,9 @@ class Spot:
         blocking_dock_robot(self.robot, dock_id)
         if home_robot:
             self.home_robot()
+
+    def undock(self):
+        blocking_undock(self.robot)
 
 
 class SpotLease:
