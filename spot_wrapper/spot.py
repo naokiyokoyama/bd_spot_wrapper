@@ -285,7 +285,7 @@ class Spot:
             transforms_snapshot_for_camera=image_response.shot.transforms_snapshot,
             frame_name_image_sensor=image_response.shot.frame_name_image_sensor,
             camera_model=image_response.source.pinhole,
-            walk_gaze_mode=3,  # PICK_NO_AUTO_WALK_OR_GAZE
+            walk_gaze_mode=2,  # PICK_NO_AUTO_WALK_OR_GAZE
         )
         if top_down_grasp or horizontal_grasp:
             if top_down_grasp:
@@ -602,7 +602,7 @@ class Spot:
         x, y, w = local_T_global.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
 
-        return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
+        return x, y, wrap_heading(self.robot_recenter_yaw - yaw)
 
     def _get_local_T_global(self, x=None, y=None, yaw=None):
         if x is None:
