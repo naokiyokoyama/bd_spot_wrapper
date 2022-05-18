@@ -285,7 +285,7 @@ class Spot:
             transforms_snapshot_for_camera=image_response.shot.transforms_snapshot,
             frame_name_image_sensor=image_response.shot.frame_name_image_sensor,
             camera_model=image_response.source.pinhole,
-            walk_gaze_mode=2,  # PICK_NO_AUTO_WALK_OR_GAZE
+            walk_gaze_mode=1,  # PICK_NO_AUTO_WALK_OR_GAZE
         )
         if top_down_grasp or horizontal_grasp:
             if top_down_grasp:
