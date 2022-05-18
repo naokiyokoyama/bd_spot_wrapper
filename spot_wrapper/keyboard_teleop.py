@@ -1,3 +1,4 @@
+import argparse
 import curses
 import os
 import signal
@@ -67,7 +68,7 @@ def raise_error(sig, frame):
     raise RuntimeError
 
 
-def main(spot: Spot):
+def main(spot: Spot, disable_oa=False):
     """Uses IK to move the arm by setting hand poses"""
     spot.power_on()
     spot.blocking_stand()
@@ -147,6 +148,7 @@ def main(spot: Spot):
                         y_vel=y_vel,
                         ang_vel=ang_vel,
                         vel_time=UPDATE_PERIOD * 2,
+                        disable_obstacle_avoidance=disable_oa,
                     )
                 else:
                     key_not_applicable = True
@@ -162,6 +164,11 @@ def main(spot: Spot):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--disable-oa", "-d", action="store_true")
+    args = parser.parse_args()
+    if args.disable_oa:
+        print("OBSTACLE AVOIDANCE HAS BEEN DISABLED!!!")
     spot = Spot("ArmKeyboardTeleop")
     with spot.get_lease(hijack=True) as lease:
-        main(spot)
+        main(spot, args.disable_oa)
