@@ -56,14 +56,6 @@ env_err_msg = (
     "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bash_profile\n"
     "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
 )
-try:
-    SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
-except KeyError:
-    raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
-try:
-    SPOT_IP = os.environ["SPOT_IP"]
-except KeyError:
-    raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
 
 ARM_6DOF_NAMES = [
     "arm0.sh0",
@@ -113,10 +105,19 @@ SHOULD_ROTATE = [
 
 class Spot:
     def __init__(self, client_name_prefix):
+        try:
+            spot_admin_pw = os.environ["SPOT_ADMIN_PW"]
+        except KeyError:
+            raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
+        try:
+            spot_ip = os.environ["SPOT_IP"]
+        except KeyError:
+            raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
+
         bosdyn.client.util.setup_logging()
         sdk = bosdyn.client.create_standard_sdk(client_name_prefix)
-        robot = sdk.create_robot(SPOT_IP)
-        robot.authenticate("admin", SPOT_ADMIN_PW)
+        robot = sdk.create_robot(spot_ip)
+        robot.authenticate("admin", spot_admin_pw)
         robot.time_sync.wait_for_sync()
         self.robot = robot
         self.command_client = None
