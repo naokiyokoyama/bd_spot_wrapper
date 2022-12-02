@@ -18,16 +18,24 @@ from bosdyn.client.estop import EstopEndpoint, EstopKeepAlive, EstopClient
 from bosdyn.client.robot_state import RobotStateClient
 import bosdyn.client.util
 
+# Get Spot password and IP address
+env_err_msg = (
+    "\n{var_name} not found as an environment variable!\n"
+    "Please run:\n"
+    "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bashrc\nor for MacOS,\n"
+    "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bash_profile\n"
+    "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
+)
+
 try:
     SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
 except KeyError:
-    raise RuntimeError(
-        "\nSPOT_ADMIN_PW not found as an environment variable!\n"
-        "Please run:\n"
-        "echo 'export SPOT_ADMIN_PW=<YOUR_SPOT_ADMIN_PW>'>> ~/.bashrc\n or for MacOS,\n"
-        "echo 'export SPOT_ADMIN_PW=<YOUR_SPOT_ADMIN_PW>'>> ~/.bash_profile\n"
-        "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
-    )
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
+try:
+    SPOT_IP = os.environ["SPOT_IP"]
+except KeyError:
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
+
 
 class EstopNoGui():
     """Provides a software estop without a GUI.
@@ -208,6 +216,6 @@ def main(argv):
 if __name__ == '__main__':
     # Open terminal interface and hold estop until user exits with SIGINT
     if len(sys.argv) == 1:
-        sys.argv.append("192.168.80.3")
+        sys.argv.append(SPOT_IP)
     if not main(sys.argv[1:]):
         sys.exit(1)
