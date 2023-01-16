@@ -18,6 +18,8 @@ and then reboot the computer.
 
 
 class KeyboardListener(object):
+    silent = False
+
     def __init__(self):
         self.done = False
         signal.signal(signal.SIGINT, self.cleanup)
@@ -60,8 +62,7 @@ class KeyboardListener(object):
                 )
                 return
 
-    @staticmethod
-    def listen(of, dev_event_file, silent=False):
+    def listen(self, of, dev_event_file):
         event_bin_format = "llHHI"  #  See kernel documentation for 'struct input_event'
         #  For details, read section 5 of this document:
         #  https://www.kernel.org/doc/Documentation/input/input.txt
@@ -71,7 +72,7 @@ class KeyboardListener(object):
         )
         if e_type == 0x1:  #  0x1 == EV_KEY means key press or release.
             d = "RELEASE" if value == 0 else "PRESS"
-            if not silent:
+            if not self.silent:
                 print(
                     f"Got key {d} from {dev_event_file}: "
                     f"t={seconds + microseconds / 1000000}us type={e_type} code={code}"
