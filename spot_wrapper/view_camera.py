@@ -11,7 +11,7 @@ from spot_wrapper.spot import (
     image_response_to_cv2,
     scale_depth_img,
 )
-from spot_wrapper.utils import color_bbox, resize_to_tallest
+from spot_wrapper.utils.utils import color_bbox, resize_to_tallest
 
 MAX_HAND_DEPTH = 3.0
 MAX_HEAD_DEPTH = 10.0
