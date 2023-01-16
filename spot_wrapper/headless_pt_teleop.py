@@ -16,11 +16,8 @@ import os
 import time
 
 import numpy as np
-from bosdyn.client.estop import EstopClient
 
-from spot_wrapper.estop import EstopNoGui
-from spot_wrapper.spot import Spot
-from spot_wrapper.utils.headless import KeyboardListener
+from spot_wrapper.headless_estop import SpotHeadlessEstop
 
 UPDATE_PERIOD = 0.2
 LINEAR_VEL = 1.0
@@ -48,18 +45,14 @@ class KEY_ID:
     UP_DOWN = 123123123  # virtual key representing both up and down pressed
 
 
-class SpotHeadlessTeleop(KeyboardListener):
+class SpotHeadlessTeleop(SpotHeadlessEstop):
     silent = True
+    name = "HeadlessTeleop"
+    debug = DEBUG
 
     def __init__(self):
         self.fsm_state = FSM_ID.IDLE
         self.lease = None
-        if not DEBUG:
-            self.spot = Spot("HeadlessTeleop")
-            estop_client = self.spot.robot.ensure_client(
-                EstopClient.default_service_name
-            )
-            self.estop_nogui = EstopNoGui(estop_client, 5, "Estop NoGUI")
         self.last_up = 0
         self.last_down = 0
         self.last_up_and_down = 0
@@ -84,6 +77,8 @@ class SpotHeadlessTeleop(KeyboardListener):
                 self.last_up_and_down = time.time()
                 if double_click and self.fsm_state != FSM_ID.IDLE:
                     self.estop()
+                    if not self.debug:
+                        self.lease.return_lease()
                     self.fsm_state = FSM_ID.IDLE
                     print("Activating E-Stop! Entering IDLE mode.")
         if (
@@ -95,9 +90,12 @@ class SpotHeadlessTeleop(KeyboardListener):
             print("Halting and docking robot...")
             self.halt_robot()
             try:
-                if not DEBUG:
+                if not self.debug:
                     self.spot.dock(DOCK_ID)
                     self.spot.home_robot()
+                    self.lease.return_lease()
+                    self.fsm_state = FSM_ID.IDLE
+                    print("Docking successful! Entering IDLE mode.")
             except:
                 print("Dock was not found!")
             return
@@ -136,26 +134,15 @@ class SpotHeadlessTeleop(KeyboardListener):
                 self.turn_right()
                 self.fsm_state = FSM_ID.RIGHT
 
-    def estop(self):
-        if DEBUG:
-            return
-        self.estop_nogui.settle_then_cut()
-        self.lease.return_lease()
-
-    def release_estop(self):
-        if DEBUG:
-            return
-        self.estop_nogui.allow()
-
     def hijack_robot(self):
-        if DEBUG:
+        if self.debug:
             return
         self.lease = self.spot.get_lease(hijack=True)
         self.spot.power_on()
         self.spot.blocking_stand()
 
     def halt_robot(self, x_vel=0.0, ang_vel=0.0):
-        if DEBUG:
+        if self.debug:
             return
         self.spot.set_base_velocity(x_vel, 0.0, ang_vel, vel_time=UPDATE_PERIOD * 2)
 
