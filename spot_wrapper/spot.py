@@ -666,9 +666,12 @@ class SpotLease:
     def __enter__(self):
         return self.lease
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, *args, **kwargs):
+        self.return_lease()
+
+    def return_lease(self):
         # Exit the LeaseKeepAlive object
-        self.lease_keep_alive.__exit__(exc_type, exc_val, exc_tb)
+        self.lease_keep_alive.shutdown()
         # Return the lease
         self.lease_client.return_lease(self.lease)
         self.spot.loginfo("Returned the lease.")
