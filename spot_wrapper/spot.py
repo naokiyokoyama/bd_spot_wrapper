@@ -321,8 +321,10 @@ class Spot:
                 axis_to_align_with_ewrt_vo
             )
 
-            # Take anything within about 10 degrees for top-down or horizontal grasps.
-            constraint.vector_alignment_with_tolerance.threshold_radians = 0.17 * 2
+            # Take anything within 30 degrees for top-down or horizontal grasps.
+            constraint.vector_alignment_with_tolerance.threshold_radians = np.deg2rad(
+                30 * 2
+            )
 
         # Ask the robot to pick up the object
         grasp_request = manipulation_api_pb2.ManipulationApiRequest(
