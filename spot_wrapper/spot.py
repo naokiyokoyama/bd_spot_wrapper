@@ -595,12 +595,16 @@ class Spot:
         return self.xy_yaw_global_to_home(robot_tform.x, robot_tform.y, yaw)
 
     def xy_yaw_global_to_home(self, x, y, yaw):
+        if self.global_T_home is None:
+            return x, y, yaw
         x, y, w = self.global_T_home.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
 
         return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
 
     def xy_yaw_home_to_global(self, x, y, yaw):
+        if self.global_T_home is None:
+            return x, y, yaw
         local_T_global = np.linalg.inv(self.global_T_home)
         x, y, w = local_T_global.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
