@@ -26,13 +26,13 @@ from bosdyn.api import (
     synchronized_command_pb2,
     trajectory_pb2,
 )
+from bosdyn.api.docking import docking_pb2
 from bosdyn.api.geometry_pb2 import SE2Velocity, SE2VelocityLimit, Vec2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
-from bosdyn.client.docking import blocking_dock_robot, blocking_undock
+from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
-    HAND_FRAME_NAME,
     VISION_FRAME_NAME,
     get_vision_tform_body,
 )
@@ -651,6 +651,12 @@ class Spot:
     def undock(self):
         blocking_undock(self.robot)
 
+    @property
+    def is_docked(self):
+        docking_client = self.robot.ensure_client(DockingClient.default_service_name)
+        dock_state = docking_client.get_docking_state()
+        return dock_state.status == docking_pb2.DockState.DOCK_STATUS_DOCKED
+
 
 class SpotLease:
     """
@@ -668,6 +674,7 @@ class SpotLease:
             self.lease = self.lease_client.acquire()
         self.lease_keep_alive = bosdyn.client.lease.LeaseKeepAlive(self.lease_client)
         self.spot = spot
+        self.dont_return_lease = False
 
     def __enter__(self):
         return self.lease
@@ -679,10 +686,11 @@ class SpotLease:
         # Exit the LeaseKeepAlive object
         self.lease_keep_alive.shutdown()
         # Return the lease
-        self.lease_client.return_lease(self.lease)
-        self.spot.loginfo("Returned the lease.")
-        # Clear lease from Spot object
-        self.spot.spot_lease = None
+        if not self.dont_return_lease:
+            self.lease_client.return_lease(self.lease)
+            self.spot.loginfo("Returned the lease.")
+            # Clear lease from Spot object
+            self.spot.spot_lease = None
 
 
 def make_robot_command(arm_joint_traj):

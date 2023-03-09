@@ -126,8 +126,11 @@ def main(spot: Spot, disable_oa=False):
                     spot.home_robot()
                 except:
                     print("Dock was not found!")
-            elif pressed_key == "i":
+            elif pressed_key == "b":
                 point, rpy = move_to_initial(spot)
+            elif pressed_key == "v":
+                spot.spot_lease.dont_return_lease = True
+                break
             else:
                 # Tele-operate either the gripper pose or the base
                 if control_arm:
@@ -157,7 +160,6 @@ def main(spot: Spot, disable_oa=False):
                 last_execution = time.time()
 
     finally:
-        spot.power_off()
         curses.echo()
         stdscr.nodelay(False)
         curses.endwin()
