@@ -26,13 +26,13 @@ from bosdyn.api import (
     synchronized_command_pb2,
     trajectory_pb2,
 )
-from bosdyn.api.docking import docking_pb2
 from bosdyn.api.geometry_pb2 import SE2Velocity, SE2VelocityLimit, Vec2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
-from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
+from bosdyn.client.docking import blocking_dock_robot, blocking_undock
 from bosdyn.client.frame_helpers import (
     GRAV_ALIGNED_BODY_FRAME_NAME,
+    HAND_FRAME_NAME,
     VISION_FRAME_NAME,
     get_vision_tform_body,
 )
@@ -56,6 +56,14 @@ env_err_msg = (
     "echo 'export {var_name}=<YOUR_{var_name}>' >> ~/.bash_profile\n"
     "Then:\nsource ~/.bashrc\nor\nsource ~/.bash_profile"
 )
+try:
+    SPOT_ADMIN_PW = os.environ["SPOT_ADMIN_PW"]
+except KeyError:
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
+try:
+    SPOT_IP = os.environ["SPOT_IP"]
+except KeyError:
+    raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
 
 ARM_6DOF_NAMES = [
     "arm0.sh0",
@@ -105,19 +113,10 @@ SHOULD_ROTATE = [
 
 class Spot:
     def __init__(self, client_name_prefix):
-        try:
-            spot_admin_pw = os.environ["SPOT_ADMIN_PW"]
-        except KeyError:
-            raise RuntimeError(env_err_msg.format(var_name="SPOT_ADMIN_PW"))
-        try:
-            spot_ip = os.environ["SPOT_IP"]
-        except KeyError:
-            raise RuntimeError(env_err_msg.format(var_name="SPOT_IP"))
-
         bosdyn.client.util.setup_logging()
         sdk = bosdyn.client.create_standard_sdk(client_name_prefix)
-        robot = sdk.create_robot(spot_ip)
-        robot.authenticate("admin", spot_admin_pw)
+        robot = sdk.create_robot(SPOT_IP)
+        robot.authenticate("admin", SPOT_ADMIN_PW)
         robot.time_sync.wait_for_sync()
         self.robot = robot
         self.command_client = None
@@ -286,7 +285,7 @@ class Spot:
             transforms_snapshot_for_camera=image_response.shot.transforms_snapshot,
             frame_name_image_sensor=image_response.shot.frame_name_image_sensor,
             camera_model=image_response.source.pinhole,
-            walk_gaze_mode=1,  # PICK_NO_AUTO_WALK_OR_GAZE
+            walk_gaze_mode=3,
         )
         if top_down_grasp or horizontal_grasp:
             if top_down_grasp:
@@ -321,10 +320,8 @@ class Spot:
                 axis_to_align_with_ewrt_vo
             )
 
-            # Take anything within 30 degrees for top-down or horizontal grasps.
-            constraint.vector_alignment_with_tolerance.threshold_radians = np.deg2rad(
-                30 * 2
-            )
+            # Take anything within about 10 degrees for top-down or horizontal grasps.
+            constraint.vector_alignment_with_tolerance.threshold_radians = 1.0 * 2
 
         # Ask the robot to pick up the object
         grasp_request = manipulation_api_pb2.ManipulationApiRequest(
@@ -595,16 +592,12 @@ class Spot:
         return self.xy_yaw_global_to_home(robot_tform.x, robot_tform.y, yaw)
 
     def xy_yaw_global_to_home(self, x, y, yaw):
-        if self.global_T_home is None:
-            return x, y, yaw
         x, y, w = self.global_T_home.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
 
         return x, y, wrap_heading(yaw - self.robot_recenter_yaw)
 
     def xy_yaw_home_to_global(self, x, y, yaw):
-        if self.global_T_home is None:
-            return x, y, yaw
         local_T_global = np.linalg.inv(self.global_T_home)
         x, y, w = local_T_global.dot(np.array([x, y, 1.0]))
         x, y = x / w, y / w
@@ -651,12 +644,6 @@ class Spot:
     def undock(self):
         blocking_undock(self.robot)
 
-    @property
-    def is_docked(self):
-        docking_client = self.robot.ensure_client(DockingClient.default_service_name)
-        dock_state = docking_client.get_docking_state()
-        return dock_state.status == docking_pb2.DockState.DOCK_STATUS_DOCKED
-
 
 class SpotLease:
     """
@@ -674,24 +661,21 @@ class SpotLease:
             self.lease = self.lease_client.acquire()
         self.lease_keep_alive = bosdyn.client.lease.LeaseKeepAlive(self.lease_client)
         self.spot = spot
-        self.dont_return_lease = False
 
     def __enter__(self):
         return self.lease
 
-    def __exit__(self, *args, **kwargs):
-        self.return_lease()
-
-    def return_lease(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         # Exit the LeaseKeepAlive object
-        self.lease_keep_alive.shutdown()
+        self.lease_keep_alive.__exit__(exc_type, exc_val, exc_tb)
         # Return the lease
-        if not self.dont_return_lease:
-            self.lease_client.return_lease(self.lease)
-            self.spot.loginfo("Returned the lease.")
-            # Clear lease from Spot object
-            self.spot.spot_lease = None
+        self.lease_client.return_lease(self.lease)
+        self.spot.loginfo("Returned the lease.")
+        # Clear lease from Spot object
+        self.spot.spot_lease = None
 
+    def create_sublease(self):
+        return self.lease.create_sublease()
 
 def make_robot_command(arm_joint_traj):
     """Helper function to create a RobotCommand from an ArmJointTrajectory.

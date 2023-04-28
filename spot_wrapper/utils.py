@@ -15,16 +15,13 @@ def say(text):
     print(f'Saying: "{text}"')
 
 
-def resize_to_tallest(imgs, widest=False, hstack=False):
-    dim_idx = 1 if widest else 0
-    tallest = max([i.shape[dim_idx] for i in imgs])
+def resize_to_tallest(imgs, hstack=False):
+    tallest = max([i.shape[0] for i in imgs])
     for idx, i in enumerate(imgs):
-        curr_dim = i.shape[dim_idx]
-        other_dim = i.shape[1 - dim_idx]
-        if curr_dim != tallest:
-            new_dim = int(other_dim * (tallest / curr_dim))
-            new_dims = (new_dim, tallest) if widest else (tallest, new_dim)
-            imgs[idx] = cv2.resize(i, new_dims)
+        height, width = i.shape[:2]
+        if height != tallest:
+            new_width = int(width * (tallest / height))
+            imgs[idx] = cv2.resize(i, (new_width, tallest))
     if hstack:
         return np.hstack(imgs)
     return imgs
