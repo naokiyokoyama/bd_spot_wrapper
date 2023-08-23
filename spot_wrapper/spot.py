@@ -32,8 +32,10 @@ from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
 from bosdyn.client.frame_helpers import (
+    BODY_FRAME_NAME,
     GRAV_ALIGNED_BODY_FRAME_NAME,
     VISION_FRAME_NAME,
+    get_a_tform_b,
     get_vision_tform_body,
 )
 from bosdyn.client.image import ImageClient, build_image_request
@@ -586,13 +588,24 @@ class Spot:
         """
         if robot_state is None:
             robot_state = self.robot_state_client.get_robot_state()
-        robot_state_kin = robot_state.kinematic_state
-        self.body = get_vision_tform_body(robot_state_kin.transforms_snapshot)
-        robot_tform = self.body
+        tf_snapshot = robot_state.kinematic_state.transforms_snapshot
+        robot_tform = get_vision_tform_body(tf_snapshot)
         yaw = math_helpers.quat_to_eulerZYX(robot_tform.rotation)[0]
         if self.global_T_home is None or use_boot_origin:
             return robot_tform.x, robot_tform.y, yaw
         return self.xy_yaw_global_to_home(robot_tform.x, robot_tform.y, yaw)
+
+    def get_transform(
+        self,
+        from_frame: str = BODY_FRAME_NAME,
+        to_frame: str = VISION_FRAME_NAME,
+        robot_state=None,
+    ):
+        if robot_state is None:
+            robot_state = self.robot_state_client.get_robot_state()
+        tf_snapshot = robot_state.kinematic_state.transforms_snapshot
+        tform = get_a_tform_b(tf_snapshot, to_frame, from_frame)
+        return tform.to_matrix()
 
     def xy_yaw_global_to_home(self, x, y, yaw):
         if self.global_T_home is None:
