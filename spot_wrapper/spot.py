@@ -260,10 +260,21 @@ class Spot:
                 quality = [quality] * len(sources)
             else:
                 assert len(quality) == len(sources)
-            sources = [build_image_request(src, q) for src, q in zip(sources, quality)]
-            image_responses = self.image_client.get_image(sources)
         else:
-            image_responses = self.image_client.get_image_from_sources(sources)
+            quality = [100] * len(sources)
+
+        p_fmts = [
+            pixel_format_string_to_enum("PIXEL_FORMAT_RGB_U8")
+            if "fisheye" in src
+            else None
+            for src in sources
+        ]
+
+        sources = [
+            build_image_request(src, q, pixel_format=fmt)
+            for src, q, fmt in zip(sources, quality, p_fmts)
+        ]
+        image_responses = self.image_client.get_image(sources)
 
         return image_responses
 
@@ -599,11 +610,11 @@ class Spot:
         self,
         from_frame: str = BODY_FRAME_NAME,
         to_frame: str = VISION_FRAME_NAME,
-        robot_state=None,
+        tf_snapshot=None,
     ):
-        if robot_state is None:
+        if tf_snapshot is None:
             robot_state = self.robot_state_client.get_robot_state()
-        tf_snapshot = robot_state.kinematic_state.transforms_snapshot
+            tf_snapshot = robot_state.kinematic_state.transforms_snapshot
         tform = get_a_tform_b(tf_snapshot, to_frame, from_frame)
         return tform.to_matrix()
 
@@ -771,3 +782,7 @@ def draw_crosshair(img):
 def wrap_heading(heading):
     """Ensures input heading is between -180 an 180; can be float or np.ndarray"""
     return (heading + np.pi) % (2 * np.pi) - np.pi
+
+
+def pixel_format_string_to_enum(enum_string):
+    return dict(image_pb2.Image.PixelFormat.items()).get(enum_string)
